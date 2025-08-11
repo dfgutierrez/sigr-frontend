@@ -35,6 +35,8 @@ export default function VentaForm({ onSave, onCancel }) {
   const { showToast } = useToast();
 
   useEffect(() => {
+    console.log('🚀 VentaForm: Componente montado');
+    console.log('👤 VentaForm: Usuario al montar:', user);
     fetchSedes();
     fetchProductos();
   }, []);
@@ -615,10 +617,23 @@ export default function VentaForm({ onSave, onCancel }) {
       return;
     }
 
+    if (!user) {
+      showToast("Error: Usuario no está logueado", "error");
+      return;
+    }
+
     setLoading(true);
     
     try {
+      // Obtener el ID del usuario logueado
+      const usuarioId = user?.id;
+      if (!usuarioId) {
+        showToast("Error: No se puede determinar el usuario logueado", "error");
+        return;
+      }
+      
       const ventaData = {
+        usuarioId: parseInt(usuarioId),
         sedeId: parseInt(formData.sedeId),
         vehiculoId: parseInt(formData.vehiculoId),
         detalles: formData.detalles.map(detalle => ({
@@ -627,6 +642,9 @@ export default function VentaForm({ onSave, onCancel }) {
           precioUnitario: detalle.precioUnitario
         }))
       };
+
+      console.log('👤 Usuario logueado ID:', usuarioId);
+      console.log('📋 Datos de venta con usuarioId:', ventaData);
 
       // Paso 1: Crear la venta
       console.log('📋 Paso 1: Registrando venta...', ventaData);
@@ -678,7 +696,7 @@ export default function VentaForm({ onSave, onCancel }) {
       
       // Mostrar resultado final
       if (inventoryErrors.length === 0) {
-        showToast("Venta procesada exitosamente y inventario actualizado", "success");
+        showToast("Venta procesada exitosamente", "success");
       } else {
         showToast(
           `Venta creada, pero hubo problemas actualizando inventario: ${inventoryErrors.slice(0, 2).join(', ')}${inventoryErrors.length > 2 ? '...' : ''}`,
@@ -686,13 +704,21 @@ export default function VentaForm({ onSave, onCancel }) {
         );
       }
       
-      onSave();
+      // Pequeña pausa para que se vea el toast y luego redireccionar
+      setTimeout(() => {
+        onSave();
+      }, 1500);
     } catch (error) {
       console.error("Error creating sale:", error);
       showToast(
         error.response?.data?.message || "Error al crear la venta",
         "error"
       );
+      
+      // En caso de error, también redireccionar después de un momento
+      setTimeout(() => {
+        onSave();
+      }, 2000);
     } finally {
       setLoading(false);
     }

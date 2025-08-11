@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from "react";
 
 // Components
-import KPICard from "components/Dashboard/KPICard.js";
 import SimpleLineChart from "components/Dashboard/SimpleLineChart.js";
 import TopProductsChart from "components/Dashboard/TopProductsChart.js";
 
 // Services
-import { ventaService } from "api/ventaService.js";
-import { productoService } from "api/productoService.js";
-import { vehiculoService } from "api/vehiculoService.js";
+import { dashboardService } from "api/dashboardService.js";
+
+// Context
+import { useAuth } from "contexts/AuthContext.js";
 
 export default function Dashboard() {
+  const { user } = useAuth();
   const [dashboardData, setDashboardData] = useState({
     kpis: {
       totalVentas: 0,
@@ -24,116 +25,83 @@ export default function Dashboard() {
     loading: true
   });
 
+  // Función para obtener sedeId del usuario
+  const getUserSedeId = (user) => {
+    if (!user) return null;
+    
+    if (user.sedes && Array.isArray(user.sedes) && user.sedes.length > 0) {
+      return user.sedes[0].id;
+    }
+    
+    return user?.sedeId || user?.sede?.id;
+  };
+
   useEffect(() => {
-    loadDashboardData();
-  }, []);
+    if (user) {
+      console.log('🏠 Dashboard: useEffect ejecutándose - cargando datos...');
+      loadDashboardData();
+    }
+  }, [user]);
 
   const loadDashboardData = async () => {
     try {
+      console.log('📊 Dashboard: Iniciando carga de datos...');
       setDashboardData(prev => ({ ...prev, loading: true }));
 
-      // Obtener fecha actual y anterior
-      const now = new Date();
-      const currentMonth = now.getMonth() + 1;
-      const currentYear = now.getFullYear();
-      const previousMonth = currentMonth === 1 ? 12 : currentMonth - 1;
-      const previousYear = currentMonth === 1 ? currentYear - 1 : currentYear;
-
-      // Preparar llamadas paralelas
-      const promises = [];
-
-      // 1. Ventas del mes actual
-      promises.push(
-        ventaService.obtenerVentasPorFecha(
-          `${currentYear}-${currentMonth.toString().padStart(2, '0')}-01`,
-          `${currentYear}-${currentMonth.toString().padStart(2, '0')}-${new Date(currentYear, currentMonth, 0).getDate()}`
-        ).catch(() => [])
-      );
-
-      // 2. Ventas del mes anterior
-      promises.push(
-        ventaService.obtenerVentasPorFecha(
-          `${previousYear}-${previousMonth.toString().padStart(2, '0')}-01`,
-          `${previousYear}-${previousMonth.toString().padStart(2, '0')}-${new Date(previousYear, previousMonth, 0).getDate()}`
-        ).catch(() => [])
-      );
-
-      // 3. Productos en stock
-      promises.push(
-        productoService.getAll().then(response => response.data || []).catch(() => [])
-      );
-
-      // 4. Vehículos
-      promises.push(
-        vehiculoService.getAllVehiculosPaginated(0, 1000).then(response => response.content || []).catch(() => [])
-      );
-
-      // 5. Ventas de los últimos 6 meses para el gráfico
-      const ventasMensualesPromises = [];
-      for (let i = 5; i >= 0; i--) {
-        const date = new Date(currentYear, currentMonth - 1 - i, 1);
-        const year = date.getFullYear();
-        const month = date.getMonth() + 1;
-        const lastDay = new Date(year, month, 0).getDate();
-        
-        ventasMensualesPromises.push(
-          ventaService.obtenerVentasPorFecha(
-            `${year}-${month.toString().padStart(2, '0')}-01`,
-            `${year}-${month.toString().padStart(2, '0')}-${lastDay}`
-          ).then(ventas => ({
-            label: date.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' }),
-            value: ventas.reduce((sum, venta) => sum + (venta.total || 0), 0),
-            month: month,
-            year: year
-          })).catch(() => ({
-            label: date.toLocaleDateString('es-ES', { month: 'short', year: '2-digit' }),
-            value: 0,
-            month: month,
-            year: year
-          }))
-        );
+      // Obtener sedeId del usuario
+      const sedeId = getUserSedeId(user);
+      if (!sedeId) {
+        console.log('📊 Dashboard: No se pudo obtener sedeId del usuario');
+        setDashboardData(prev => ({ ...prev, loading: false }));
+        return;
       }
 
-      // Ejecutar todas las promesas
-      const [
-        ventasActuales,
-        ventasAnteriores, 
-        productos,
-        vehiculos,
-        ...ventasMensuales
-      ] = await Promise.all([...promises, ...ventasMensualesPromises]);
+      console.log('📊 Dashboard: Obteniendo datos para sede:', sedeId);
+      
+      // Consumir la nueva API del dashboard
+      const response = await dashboardService.getDashboardBySede(sedeId);
+      
+      if (response.success && response.data) {
+        const apiData = response.data;
+        
+        console.log('📊 Dashboard: Datos recibidos de la API:', apiData);
 
-      // Calcular KPIs
-      const totalVentasActual = ventasActuales.reduce((sum, venta) => sum + (venta.total || 0), 0);
-      const totalVentasAnterior = ventasAnteriores.reduce((sum, venta) => sum + (venta.total || 0), 0);
-      const productosEnStock = productos.filter(p => (p.stock || 0) > 0).length;
-      const vehiculosActivos = vehiculos.filter(v => v.estado === 'ACTIVO').length;
-      const ventasDiarias = Math.round(totalVentasActual / now.getDate());
-
-      // Preparar datos de productos más vendidos (simulado por ahora)
-      const topProductos = productos
-        .filter(p => p.stock > 0)
-        .slice(0, 10)
-        .map((producto, index) => ({
+        // Mapear datos de ventas mensuales
+        const ventasMensuales = (apiData.ventasMensuales || []).map(venta => ({
+          ...venta,
+          label: venta.mes // Mapear 'mes' a 'label' para el componente gráfico
+        }));
+        
+        // Mapear productos más vendidos
+        const topProductos = (apiData.productosMasVendidos || []).map(producto => ({
           name: producto.nombre,
-          value: Math.floor(Math.random() * 100) + 10 // Datos simulados
+          value: producto.cantidadVendida
         }));
 
-      setDashboardData({
-        kpis: {
-          totalVentas: totalVentasActual,
-          totalVentasAnterior: totalVentasAnterior,
-          productosEnStock: productosEnStock,
-          vehiculosActivos: vehiculosActivos,
-          ventasDiarias: ventasDiarias
-        },
-        ventasMensuales: ventasMensuales,
-        topProductos: topProductos,
-        loading: false
-      });
+        // Obtener KPIs
+        const kpis = apiData.kpis || {};
+        
+        setDashboardData({
+          kpis: {
+            totalVentas: kpis.ventasMesActual?.total || 0,
+            totalVentasAnterior: kpis.ventasMesAnterior?.total || 0,
+            productosEnStock: kpis.inventario?.productosEnStock || 0,
+            vehiculosActivos: apiData.vehiculosNuevosDiaActual || 0, // Usando vehículos nuevos del día
+            ventasDiarias: kpis.ventasMesActual?.cantidad || 0
+          },
+          ventasMensuales: ventasMensuales,
+          topProductos: topProductos,
+          loading: false
+        });
+        
+        console.log('✅ Dashboard: Datos cargados exitosamente');
+      } else {
+        console.log('⚠️ Dashboard: Respuesta sin datos válidos');
+        setDashboardData(prev => ({ ...prev, loading: false }));
+      }
 
     } catch (error) {
-      console.error("Error loading dashboard data:", error);
+      console.error("❌ Dashboard: Error loading dashboard data:", error);
       setDashboardData(prev => ({ ...prev, loading: false }));
     }
   };
@@ -167,45 +135,6 @@ export default function Dashboard() {
   return (
     <>
       <div className="flex flex-wrap">
-        {/* KPI Cards */}
-        <div className="w-full xl:w-3/12 mb-12 xl:mb-0 px-4">
-          <KPICard
-            title="Ventas del Mes"
-            value={dashboardData.kpis.totalVentas}
-            previousValue={dashboardData.kpis.totalVentasAnterior}
-            icon="fas fa-dollar-sign"
-            color="lightBlue"
-            prefix="$"
-          />
-        </div>
-        <div className="w-full xl:w-3/12 mb-12 xl:mb-0 px-4">
-          <KPICard
-            title="Productos en Stock"
-            value={dashboardData.kpis.productosEnStock}
-            icon="fas fa-box"
-            color="emerald"
-          />
-        </div>
-        <div className="w-full xl:w-3/12 mb-12 xl:mb-0 px-4">
-          <KPICard
-            title="Vehículos Activos"
-            value={dashboardData.kpis.vehiculosActivos}
-            icon="fas fa-truck"
-            color="orange"
-          />
-        </div>
-        <div className="w-full xl:w-3/12 mb-12 xl:mb-0 px-4">
-          <KPICard
-            title="Promedio Diario"
-            value={dashboardData.kpis.ventasDiarias}
-            icon="fas fa-chart-line"
-            color="purple"
-            prefix="$"
-          />
-        </div>
-      </div>
-
-      <div className="flex flex-wrap mt-4">
         {/* Gráfico de Ventas Mensuales */}
         <div className="w-full xl:w-8/12 mb-12 xl:mb-0 px-4">
           <SimpleLineChart
@@ -249,7 +178,7 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="block w-full overflow-x-auto p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-blueGray-50 p-4 rounded-lg">
                   <h4 className="text-sm font-bold text-blueGray-700 mb-2">
                     <i className="fas fa-chart-bar mr-2 text-lightBlue-500"></i>
@@ -266,15 +195,6 @@ export default function Dashboard() {
                   </h4>
                   <p className="text-xs text-blueGray-600">
                     {dashboardData.kpis.productosEnStock} productos disponibles en stock.
-                  </p>
-                </div>
-                <div className="bg-blueGray-50 p-4 rounded-lg">
-                  <h4 className="text-sm font-bold text-blueGray-700 mb-2">
-                    <i className="fas fa-truck mr-2 text-orange-500"></i>
-                    Flota
-                  </h4>
-                  <p className="text-xs text-blueGray-600">
-                    {dashboardData.kpis.vehiculosActivos} vehículos en operación.
                   </p>
                 </div>
               </div>

@@ -1,5 +1,5 @@
 import React from "react";
-import { Switch, Route, Redirect } from "react-router-dom";
+import { Switch, Route, Redirect, useHistory } from "react-router-dom";
 
 // components
 import AdminNavbar from "components/Navbars/AdminNavbar.js";
@@ -13,12 +13,16 @@ import VentaForm from "components/Forms/VentaForm.js";
 
 // Wrapper component for the new sale form
 function NuevaVentaWrapper() {
+  const history = useHistory();
+
   const handleSave = () => {
-    window.location.href = "/ventas/historial";
+    // Usar React Router en lugar de window.location para evitar recarga completa
+    history.push("/ventas/historial");
   };
 
   const handleCancel = () => {
-    window.location.href = "/ventas/historial";
+    // Usar React Router en lugar de window.location para evitar recarga completa
+    history.push("/ventas/historial");
   };
 
   return (

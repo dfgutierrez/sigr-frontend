@@ -26,6 +26,14 @@ api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token");
     
+    // 🚨 DEBUGGING EXTREMO: Capturar TODAS las peticiones
+    console.log("🚨🚨 AXIOS REQUEST INTERCEPTOR:");
+    console.log("🚨🚨 Method:", config.method?.toUpperCase());
+    console.log("🚨🚨 Base URL:", config.baseURL);
+    console.log("🚨🚨 URL:", config.url);
+    console.log("🚨🚨 Params:", config.params);
+    console.log("🚨🚨 Full URL would be:", `${config.baseURL}${config.url}${config.params ? '?' + new URLSearchParams(config.params).toString() : ''}`);
+    
     // Debug para detectar peticiones problemáticas
     if (config.url && config.url.includes("undefined")) {
       console.error("🚨 AXIOS: Detected URL with 'undefined':", config.url);
