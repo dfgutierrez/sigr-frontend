@@ -14,6 +14,9 @@ import VentaForm from "components/Forms/VentaForm.js";
 // Wrapper component for the new sale form
 function NuevaVentaWrapper() {
   const history = useHistory();
+  const urlParams = new URLSearchParams(window.location.search);
+  const vehiculoId = urlParams.get('vehiculoId');
+  const placa = urlParams.get('placa');
 
   const handleSave = () => {
     // Usar React Router en lugar de window.location para evitar recarga completa
@@ -28,7 +31,12 @@ function NuevaVentaWrapper() {
   return (
     <div className="flex flex-wrap">
       <div className="w-full px-4">
-        <VentaForm onSave={handleSave} onCancel={handleCancel} />
+        <VentaForm 
+          onSave={handleSave} 
+          onCancel={handleCancel}
+          preselectedVehiculoId={vehiculoId}
+          preselectedPlaca={placa}
+        />
       </div>
     </div>
   );

@@ -203,6 +203,7 @@ export default function Marcas() {
       <ConfirmationModal
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
+        onCancel={() => setShowDeleteModal(false)}
         onConfirm={confirmDelete}
         title="Eliminar Marca"
         message={`¿Está seguro que desea eliminar la marca "${marcaToDelete?.nombre}"? Esta acción puede afectar vehículos asociados.`}

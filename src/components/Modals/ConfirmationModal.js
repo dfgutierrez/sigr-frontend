@@ -10,9 +10,11 @@ export default function ConfirmationModal({
   cancelText = "Cancelar", 
   onConfirm, 
   onCancel, 
+  onClose,
   loading = false,
   type = "danger" // danger, warning, info
 }) {
+
   if (!isOpen) return null;
 
   const getTypeStyles = () => {
@@ -51,7 +53,7 @@ export default function ConfirmationModal({
   const styles = getTypeStyles();
 
   return (
-    <SimpleModal isOpen={isOpen} onClose={() => !loading && onCancel()}>
+    <SimpleModal isOpen={isOpen} onClose={() => !loading && (onClose || onCancel)()}>
       <div className="max-w-md w-full">
         <div className="px-6 py-4">
           <div className="flex items-center">
@@ -72,30 +74,108 @@ export default function ConfirmationModal({
           </p>
         </div>
 
-        <div className="px-6 py-4 bg-blueGray-50 rounded-b-lg flex justify-end space-x-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="bg-white text-blueGray-700 border border-blueGray-300 px-4 py-2 rounded-md text-sm font-medium hover:bg-blueGray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-            disabled={loading}
-          >
-            {cancelText}
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={loading}
-            className={`${styles.confirmButton} text-white px-4 py-2 rounded-md text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed`}
-          >
-            {loading ? (
-              <>
-                <i className="fas fa-spinner fa-spin mr-2"></i>
-                Procesando...
-              </>
-            ) : (
-              confirmText
-            )}
-          </button>
+        <div className="px-6 py-4 bg-blueGray-50 rounded-b-lg">
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'flex-end', 
+            alignItems: 'center', 
+            gap: '12px',
+            width: '100%',
+            minHeight: '50px'
+          }}>
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={loading}
+              style={{
+                backgroundColor: '#ffffff',
+                color: '#374151',
+                border: '1px solid #d1d5db',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                fontSize: '14px',
+                fontWeight: '500',
+                minWidth: '100px',
+                height: '40px',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+              }}
+              onMouseEnter={(e) => {
+                if (!loading) {
+                  e.target.style.backgroundColor = '#f9fafb';
+                  e.target.style.borderColor = '#9ca3af';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!loading) {
+                  e.target.style.backgroundColor = '#ffffff';
+                  e.target.style.borderColor = '#d1d5db';
+                }
+              }}
+            >
+              {cancelText}
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              disabled={loading}
+              style={{
+                backgroundColor: type === 'info' ? '#2563eb' : type === 'danger' ? '#dc2626' : '#d97706',
+                color: '#ffffff',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                fontSize: '14px',
+                fontWeight: '500',
+                minWidth: '140px',
+                height: '40px',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? '0.5' : '1',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)'
+              }}
+              onMouseEnter={(e) => {
+                if (!loading) {
+                  const hoverColors = {
+                    info: '#1d4ed8',
+                    danger: '#b91c1c', 
+                    warning: '#c2410c'
+                  };
+                  e.target.style.backgroundColor = hoverColors[type] || hoverColors.warning;
+                  e.target.style.transform = 'translateY(-1px)';
+                  e.target.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!loading) {
+                  const originalColors = {
+                    info: '#2563eb',
+                    danger: '#dc2626',
+                    warning: '#d97706'
+                  };
+                  e.target.style.backgroundColor = originalColors[type] || originalColors.warning;
+                  e.target.style.transform = 'translateY(0)';
+                  e.target.style.boxShadow = '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)';
+                }
+              }}
+            >
+              {loading ? (
+                <>
+                  <i className="fas fa-spinner fa-spin" style={{ marginRight: '8px' }}></i>
+                  Procesando...
+                </>
+              ) : (
+                confirmText || 'Confirmar'
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </SimpleModal>
@@ -109,7 +189,8 @@ ConfirmationModal.propTypes = {
   confirmText: PropTypes.string,
   cancelText: PropTypes.string,
   onConfirm: PropTypes.func.isRequired,
-  onCancel: PropTypes.func.isRequired,
+  onCancel: PropTypes.func,
+  onClose: PropTypes.func,
   loading: PropTypes.bool,
   type: PropTypes.oneOf(["danger", "warning", "info"])
 };

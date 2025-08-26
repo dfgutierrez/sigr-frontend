@@ -7,6 +7,12 @@ import { useToast } from "hooks/useToast.js";
 
 export default function VehiculoForm({ vehiculo, onSave, onCancel, preSelectedSedeId }) {
   const { user } = useAuth();
+  
+  // Verificar si el usuario es vendedor
+  const isVendedor = () => {
+    return user?.rol === 'VENDEDOR' || user?.role === 'VENDEDOR' || 
+           (user?.roles && user.roles.includes('VENDEDOR'));
+  };
   const [formData, setFormData] = useState({
     placa: "",
     tipo: "moto",
@@ -30,6 +36,24 @@ export default function VehiculoForm({ vehiculo, onSave, onCancel, preSelectedSe
     fetchSedes();
     
     if (vehiculo) {
+      // Determinar la sede a preseleccionar en modo edición
+      let sedeId = '';
+      
+      // Si es vendedor, usar su sede asignada (no la del vehículo)
+      if (isVendedor()) {
+        if (user?.sedes && Array.isArray(user.sedes) && user.sedes.length > 0) {
+          sedeId = user.sedes[0].id.toString();
+          console.log('🏢 VENDEDOR: Forzando sede del usuario en vehículo:', user.sedes[0].nombre);
+        } else if (user?.sedeId) {
+          sedeId = user.sedeId.toString();
+          console.log('🏢 VENDEDOR: Forzando sede del usuario (sedeId) en vehículo:', sedeId);
+        }
+      } 
+      // Para otros roles, usar la sede del vehículo
+      else {
+        sedeId = vehiculo.sedeId || '';
+      }
+      
       setFormData({
         placa: vehiculo.placa || "",
         tipo: vehiculo.tipo || "moto",
@@ -39,7 +63,7 @@ export default function VehiculoForm({ vehiculo, onSave, onCancel, preSelectedSe
         documento: vehiculo.documento || "",
         km: vehiculo.km || 0,
         sigla: vehiculo.sigla || "",
-        sedeId: vehiculo.sedeId || ""
+        sedeId: sedeId
       });
     } else if (preSelectedSedeId) {
       setFormData(prev => ({
@@ -81,8 +105,10 @@ export default function VehiculoForm({ vehiculo, onSave, onCancel, preSelectedSe
       const data = await sedeService.getAllSedes();
       setSedes(data);
       
-      // Establecer sede por defecto si no estamos editando y no hay preselección
-      if (!vehiculo && !preSelectedSedeId && !formData.sedeId) {
+      // Establecer sede por defecto
+      // Para vendedores, siempre establecer su sede (tanto en crear como editar)
+      // Para otros roles, solo en modo creación si no hay preselección
+      if (isVendedor() || (!vehiculo && !preSelectedSedeId && !formData.sedeId)) {
         setDefaultSede(data);
       }
     } catch (error) {
@@ -187,15 +213,18 @@ export default function VehiculoForm({ vehiculo, onSave, onCancel, preSelectedSe
         km: parseInt(formData.km) || 0
       };
 
+      let vehiculoCreado = null;
+      
       if (vehiculo) {
         await vehiculoService.updateVehiculo(vehiculo.id, dataToSend);
         showToast("Vehículo actualizado exitosamente", "success");
       } else {
-        await vehiculoService.createVehiculo(dataToSend);
+        const response = await vehiculoService.createVehiculo(dataToSend);
+        vehiculoCreado = response.data || response;
         showToast("Vehículo creado exitosamente", "success");
       }
       
-      onSave();
+      onSave(vehiculoCreado);
     } catch (error) {
       console.error("Error saving vehiculo:", error);
       showToast(
@@ -371,8 +400,11 @@ export default function VehiculoForm({ vehiculo, onSave, onCancel, preSelectedSe
                   name="sedeId"
                   value={formData.sedeId}
                   onChange={handleInputChange}
+                  disabled={isVendedor()}
                   className={`border-0 px-3 py-3 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150 ${
                     errors.sedeId ? 'border-red-500' : ''
+                  } ${
+                    isVendedor() ? 'bg-blueGray-100 cursor-not-allowed' : ''
                   }`}
                 >
                   <option value="">Seleccionar sede</option>
@@ -385,6 +417,12 @@ export default function VehiculoForm({ vehiculo, onSave, onCancel, preSelectedSe
                 {errors.sedeId && (
                   <p className="text-red-500 text-xs mt-1">{errors.sedeId}</p>
                 )}
+                {isVendedor() && (
+                  <p className="text-gray-500 text-xs mt-1">
+                    <i className="fas fa-info-circle mr-1"></i>
+                    Como vendedor, no puede modificar la sede del vehículo.
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -395,7 +433,7 @@ export default function VehiculoForm({ vehiculo, onSave, onCancel, preSelectedSe
             <button
               type="button"
               onClick={onCancel}
-              className="bg-blueGray-500 text-white active:bg-blueGray-600 font-bold uppercase text-xs px-4 py-2 rounded shadow hover:shadow-md outline-none focus:outline-none mr-1 ease-linear transition-all duration-150"
+              className="bg-white text-blueGray-700 border border-blueGray-300 active:bg-blueGray-50 font-bold uppercase text-xs px-4 py-2 rounded shadow hover:shadow-md hover:bg-blueGray-50 outline-none focus:outline-none mr-1 ease-linear transition-all duration-150"
             >
               Cancelar
             </button>

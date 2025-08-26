@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useHistory } from "react-router-dom";
 import { vehiculoService } from "api/vehiculoService.js";
 import { sedeService } from "api/sedeService.js";
 import VehiculoForm from "components/Forms/VehiculoForm.js";
@@ -6,6 +7,7 @@ import ConfirmationModal from "components/Modals/ConfirmationModal.js";
 import { useToast } from "hooks/useToast.js";
 
 export default function Vehiculos() {
+  const history = useHistory();
   const [vehiculos, setVehiculos] = useState([]);
   const [sedes, setSedes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -102,10 +104,17 @@ export default function Vehiculos() {
     }
   };
 
-  const handleFormSave = () => {
+  const handleFormSave = (vehiculoCreado = null) => {
     setShowForm(false);
     setEditingVehiculo(null);
     fetchVehiculos();
+    
+    // Si es un vehículo nuevo (no edición), redirigir a nueva venta
+    if (vehiculoCreado && !editingVehiculo) {
+      console.log('🚗 Vehículo creado, redirigiendo a nueva venta:', vehiculoCreado);
+      // Redirigir a nueva venta con parámetros del vehículo
+      history.push(`/ventas/nueva?vehiculoId=${vehiculoCreado.id}&placa=${encodeURIComponent(vehiculoCreado.placa)}`);
+    }
   };
 
   const handleFormCancel = () => {
@@ -376,6 +385,7 @@ export default function Vehiculos() {
       <ConfirmationModal
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
+        onCancel={() => setShowDeleteModal(false)}
         onConfirm={confirmDelete}
         title="Eliminar Vehículo"
         message={`¿Está seguro que desea eliminar el vehículo con placa ${vehiculoToDelete?.placa}?`}

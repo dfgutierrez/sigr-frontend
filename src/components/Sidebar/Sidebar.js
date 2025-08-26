@@ -8,7 +8,7 @@ import { menuService } from "api/menuService.js";
 import { useAuth } from "contexts/AuthContext.js";
 
 export default function Sidebar() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [collapseShow, setCollapseShow] = React.useState("hidden");
   const [menus, setMenus] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
@@ -30,6 +30,9 @@ export default function Sidebar() {
     const fetchMenus = async () => {
       try {
         console.log("📡 Sidebar: Starting menu fetch...");
+        console.log("👤 Sidebar: Current user:", user);
+        console.log("⏳ Sidebar: Auth loading:", authLoading);
+        
         const menuData = await menuService.getMyMenus();
         console.log("📡 Sidebar: Menus fetched successfully:", menuData);
         
@@ -74,8 +77,16 @@ export default function Sidebar() {
       }
     };
 
-    fetchMenus();
-  }, []);
+    // Solo ejecutar cuando AuthContext haya terminado de cargar y tengamos un usuario
+    if (!authLoading && user) {
+      fetchMenus();
+    } else if (!authLoading && !user) {
+      // Si no hay usuario después de cargar, limpiar menús
+      console.log("🚫 Sidebar: No user found after auth loading completed, clearing menus");
+      setMenus([]);
+      setLoading(false);
+    }
+  }, [user, authLoading]);
 
   return (
     <>

@@ -2,24 +2,34 @@ import apiClient from './axiosConfig';
 import { mockInventarioService, shouldUseMock } from "./mockServices";
 
 export const productoService = {
-  // Obtener todos los productos
-  getAll: async () => {
+  // Obtener todos los productos - Opcionalmente filtrados por sede
+  getAll: async (sedeId = null) => {
     if (shouldUseMock()) {
       const productos = await mockInventarioService.getAllProductos();
       return { data: productos };
     }
-    return await apiClient.get('/productos');
+    
+    // Si se proporciona sedeId, agregar como parámetro de consulta
+    const params = sedeId ? { sedeId } : {};
+    return await apiClient.get('/productos', { params });
   },
 
-  // Alias para compatibilidad con formularios existentes
-  getAllProductos: async () => {
+  // Alias para compatibilidad con formularios existentes - Opcionalmente filtrados por sede
+  getAllProductos: async (sedeId = null) => {
     try {
       if (shouldUseMock()) {
         return await mockInventarioService.getAllProductos();
       }
       
-      const response = await apiClient.get('/productos');
-      console.log('🛒 ProductoService: Products loaded from /api/v1/productos:', response.data);
+      // Si se proporciona sedeId, agregar como parámetro de consulta
+      const params = sedeId ? { sedeId } : {};
+      const response = await apiClient.get('/productos', { params });
+      
+      console.log('🛒 ProductoService: Products loaded from /api/v1/productos:', {
+        sedeId: sedeId || 'all',
+        count: Array.isArray(response.data?.data) ? response.data.data.length : 0,
+        response: response.data
+      });
       
       // Manejar diferentes estructuras de respuesta
       return response.data?.data || response.data || [];

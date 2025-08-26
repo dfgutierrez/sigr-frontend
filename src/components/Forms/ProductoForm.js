@@ -2,11 +2,27 @@ import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { categoriaService } from 'api/categoriaService';
 import { sedeService } from 'api/sedeService';
+import { marcaService } from 'api/marcaService';
 import { useAuth } from 'contexts/AuthContext';
-import SimpleModal from 'components/Modals/SimpleModal';
+import Button from 'components/UI/Button';
+import Input from 'components/UI/Input';
+import Select from 'components/UI/Select';
 
-export default function ProductoForm({ producto, onSubmit, onCancel, isEditing = false }) {
+const ProductoForm = ({ 
+  producto = null, 
+  onSubmit, 
+  onCancel,
+  loading = false,
+  isEditing = false 
+}) => {
   const { user } = useAuth();
+  
+  // Verificar si el usuario es vendedor
+  const isVendedor = () => {
+    return user?.rol === 'VENDEDOR' || user?.role === 'VENDEDOR' || 
+           (user?.roles && user.roles.includes('VENDEDOR'));
+  };
+
   const [formData, setFormData] = useState({
     codigo_barra: '',
     nombre: '',
@@ -15,17 +31,48 @@ export default function ProductoForm({ producto, onSubmit, onCancel, isEditing =
     precio_venta: '',
     categoria_id: '',
     sede_id: '',
-    cantidad_inicial: ''
+    cantidad_inicial: '',
+    marca_id: ''
   });
+
   const [categorias, setCategorias] = useState([]);
   const [sedes, setSedes] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [marcas, setMarcas] = useState([]);
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
     fetchCategorias();
     fetchSedes();
+    fetchMarcas();
     if (producto && isEditing) {
+      // Determinar la sede a preseleccionar
+      let sedeId = '';
+      
+      // Si es vendedor, usar su sede asignada (no la del producto)
+      if (isVendedor()) {
+        if (user?.sedes && Array.isArray(user.sedes) && user.sedes.length > 0) {
+          sedeId = user.sedes[0].id.toString();
+          console.log('🏢 VENDEDOR: Forzando sede del usuario:', user.sedes[0].nombre);
+        } else if (user?.sedeId) {
+          sedeId = user.sedeId.toString();
+          console.log('🏢 VENDEDOR: Forzando sede del usuario (sedeId):', sedeId);
+        }
+      } 
+      // Para otros roles, usar la sede del producto
+      else {
+        // Opción 1: Si el producto tiene array de sedes, usar la primera sede con stock
+        if (producto.sedes && Array.isArray(producto.sedes) && producto.sedes.length > 0) {
+          const sedeConStock = producto.sedes.find(sede => sede.tieneStock) || producto.sedes[0];
+          sedeId = sedeConStock.sedeId?.toString() || '';
+          console.log('🏢 Preseleccionando sede desde sedes array:', sedeConStock.sedeNombre);
+        }
+        // Opción 2: Fallback a propiedades directas del producto
+        else if (producto.sedeId || producto.sede_id) {
+          sedeId = (producto.sedeId || producto.sede_id).toString();
+          console.log('🏢 Preseleccionando sede desde producto directo:', sedeId);
+        }
+      }
+      
       setFormData({
         codigo_barra: producto.codigoBarra || producto.codigo_barra || '',
         nombre: producto.nombre || '',
@@ -33,11 +80,13 @@ export default function ProductoForm({ producto, onSubmit, onCancel, isEditing =
         precio_compra: producto.precioCompra || producto.precio_compra || '',
         precio_venta: producto.precioVenta || producto.precio_venta || '',
         categoria_id: producto.categoriaId || producto.categoria_id || '',
-        sede_id: producto.sedeId || producto.sede_id || '',
-        cantidad_inicial: producto.cantidadInicial || producto.cantidad_inicial || ''
+        sede_id: sedeId,
+        cantidad_inicial: producto.cantidadInicial || producto.cantidad_inicial || '',
+        marca_id: (producto.marcaId !== null && producto.marcaId !== undefined) ? producto.marcaId.toString() : 
+                 (producto.marca_id !== null && producto.marca_id !== undefined) ? producto.marca_id.toString() : ''
       });
     }
-  }, [producto, isEditing]);
+  }, [producto, isEditing, user]);
 
   const fetchCategorias = async () => {
     try {
@@ -82,13 +131,51 @@ export default function ProductoForm({ producto, onSubmit, onCancel, isEditing =
       setSedes(Array.isArray(data) ? data : []);
       console.log('✅ Sedes loaded:', Array.isArray(data) ? data.length : 0, 'items');
       
-      // Establecer la sede por defecto si no estamos editando
-      if (!isEditing && !formData.sede_id) {
+      // Establecer la sede por defecto
+      // Para vendedores, siempre establecer su sede (tanto en crear como editar)
+      // Para otros roles, solo en modo creación si no hay sede
+      if (isVendedor() || (!isEditing && !formData.sede_id)) {
         setDefaultSede(data);
       }
     } catch (error) {
       console.error('Error fetching sedes:', error);
       setSedes([]);
+    }
+  };
+
+  const fetchMarcas = async () => {
+    try {
+      const response = await marcaService.getAllMarcas();
+      
+      console.log('🏷️ Full marcas API response:', response);
+      
+      // Verificar diferentes estructuras de respuesta posibles
+      let marcasData = [];
+      
+      if (Array.isArray(response)) {
+        // La respuesta directa es un array
+        marcasData = response;
+      } else if (response && Array.isArray(response.data)) {
+        // La respuesta tiene estructura { data: [...] }
+        marcasData = response.data;
+      } else if (response && Array.isArray(response.marcas)) {
+        // La respuesta tiene estructura { marcas: [...] }
+        marcasData = response.marcas;
+      } else {
+        // Fallback: usar array vacío
+        console.warn('⚠️ Unexpected marcas response structure:', response);
+        marcasData = [];
+      }
+      
+      setMarcas(marcasData);
+      console.log('✅ Marcas loaded:', marcasData.length, 'items');
+    } catch (error) {
+      console.error('Error fetching marcas:', error);
+      // Fallback marcas if API fails
+      setMarcas([
+        { id: 1, nombre: 'Marca General' },
+        { id: 2, nombre: 'Sin Marca' }
+      ]);
     }
   };
 
@@ -134,6 +221,10 @@ export default function ProductoForm({ producto, onSubmit, onCancel, isEditing =
     }
   };
 
+  const handleBlur = () => {
+    // Placeholder para mantener compatibilidad con UserForm
+  };
+
   const validateForm = () => {
     const newErrors = {};
     
@@ -166,7 +257,8 @@ export default function ProductoForm({ producto, onSubmit, onCancel, isEditing =
       newErrors.sede_id = 'Seleccione una sede';
     }
     
-    if (!formData.cantidad_inicial || formData.cantidad_inicial < 0) {
+    // Validar cantidad inicial solo en modo creación (en edición es opcional y disabled)
+    if (!isEditing && (!formData.cantidad_inicial || formData.cantidad_inicial < 0)) {
       newErrors.cantidad_inicial = 'Ingrese una cantidad inicial válida (0 o mayor)';
     }
     
@@ -174,384 +266,299 @@ export default function ProductoForm({ producto, onSubmit, onCancel, isEditing =
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     
     if (!validateForm()) {
       return;
     }
+
+    // Convertir datos al formato esperado por la API
+    const apiData = {
+      codigoBarra: formData.codigo_barra,
+      nombre: formData.nombre,
+      descripcion: formData.descripcion,
+      precioCompra: parseFloat(formData.precio_compra),
+      precioVenta: parseFloat(formData.precio_venta),
+      categoriaId: parseInt(formData.categoria_id),
+      sedeId: parseInt(formData.sede_id),
+      marcaId: formData.marca_id ? parseInt(formData.marca_id) : null
+    };
     
-    setLoading(true);
-    try {
-      // Convertir datos al formato esperado por la API
-      const apiData = {
-        codigoBarra: formData.codigo_barra,
-        nombre: formData.nombre,
-        descripcion: formData.descripcion,
-        precioCompra: parseFloat(formData.precio_compra),
-        precioVenta: parseFloat(formData.precio_venta),
-        categoriaId: parseInt(formData.categoria_id),
-        sedeId: parseInt(formData.sede_id),
-        cantidadInicial: parseInt(formData.cantidad_inicial) || 0
-      };
-      
-      console.log('📤 Sending to API:', apiData);
-      await onSubmit(apiData);
-    } catch (error) {
-      console.error('Error submitting form:', error);
-      setErrors({ submit: "Error al guardar el producto" });
-    } finally {
-      setLoading(false);
+    // Solo incluir cantidadInicial en modo creación
+    if (!isEditing) {
+      apiData.cantidadInicial = parseInt(formData.cantidad_inicial) || 0;
     }
+    
+    console.log('📤 Sending to API:', apiData);
+    onSubmit(apiData);
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0
-    }).format(amount || 0);
-  };
+  // Preparar opciones para los componentes Select
+  const categoriaOptions = categorias.map(categoria => ({
+    value: categoria.id,
+    label: categoria.nombre,
+    key: categoria.id
+  }));
 
-  const getMargin = () => {
-    const compra = parseFloat(formData.precio_compra) || 0;
-    const venta = parseFloat(formData.precio_venta) || 0;
-    if (compra > 0 && venta > compra) {
-      const margin = ((venta - compra) / compra * 100).toFixed(1);
-      return `${margin}%`;
-    }
-    return '0%';
-  };
+  const marcaOptions = marcas.map(marca => ({
+    value: marca.id,
+    label: marca.nombre,
+    key: marca.id
+  }));
+
+  const sedeOptions = sedes.map(sede => ({
+    value: sede.id,
+    label: sede.nombre,
+    key: sede.id
+  }));
 
   return (
-    <SimpleModal isOpen={true} onClose={onCancel}>
-      <div 
-        className="max-w-2xl w-full" 
-        style={{
-          width: '48rem',
-          backgroundColor: 'white',
-          borderRadius: '8px',
-          overflow: 'visible'
-        }}
-      >
-        <form onSubmit={handleSubmit}>
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900">
-              {isEditing ? "Editar Producto" : "Crear Nuevo Producto"}
-            </h3>
+    <form onSubmit={handleSubmit}>
+      <div className="px-6 py-4 border-b border-gray-200">
+        <h3 className="text-lg font-medium text-gray-900">
+          {isEditing ? "Editar Producto" : "Nuevo Producto"}
+        </h3>
+      </div>
+      
+      <div className="px-6 py-4 space-y-4 max-h-96 overflow-y-auto">
+
+        {/* Sección: Información Básica */}
+        <div className="space-y-4">
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Código de Barra"
+              name="codigo_barra"
+              value={formData.codigo_barra}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              error={errors.codigo_barra}
+              required
+              placeholder="Ej: 1234567890123"
+              disabled={loading}
+            />
+            
+            <Input
+              label="Nombre del Producto"
+              name="nombre"
+              value={formData.nombre}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              error={errors.nombre}
+              required
+              placeholder="Ej: Producto de ejemplo"
+              disabled={loading}
+            />
           </div>
 
-          <div className="px-6 py-4 space-y-4">
-            {/* Primera fila: Código y Nombre */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Código de Barra */}
-              <div>
-                <label className="block text-xs font-bold uppercase text-blueGray-600 mb-2">
-                  Código de Barra *
-                </label>
-                <input
-                  type="text"
-                  name="codigo_barra"
-                  value={formData.codigo_barra}
-                  onChange={handleChange}
-                  className={`border-0 px-3 py-3 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150 ${
-                    errors.codigo_barra ? 'ring-2 ring-red-500' : ''
-                  }`}
-                  placeholder="Ej: 1234567890123"
-                  disabled={loading}
-                />
-                {errors.codigo_barra && (
-                  <p className="text-red-500 text-xs mt-1">{errors.codigo_barra}</p>
-                )}
-              </div>
+          <Input
+            label="Descripción"
+            name="descripcion"
+            value={formData.descripcion}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            placeholder="Descripción del producto (opcional)"
+            disabled={loading}
+          />
+        </div>
 
-              {/* Nombre */}
-              <div>
-                <label className="block text-xs font-bold uppercase text-blueGray-600 mb-2">
-                  Nombre del Producto *
-                </label>
-                <input
-                  type="text"
-                  name="nombre"
-                  value={formData.nombre}
-                  onChange={handleChange}
-                  className={`border-0 px-3 py-3 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150 ${
-                    errors.nombre ? 'ring-2 ring-red-500' : ''
-                  }`}
-                  placeholder="Ej: Producto de ejemplo"
-                  disabled={loading}
-                />
-                {errors.nombre && (
-                  <p className="text-red-500 text-xs mt-1">{errors.nombre}</p>
-                )}
-              </div>
-            </div>
+        {/* Sección: Precios */}
+        <div className="space-y-4">
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Precio de Compra"
+              name="precio_compra"
+              type="number"
+              step="0.01"
+              min="0"
+              value={formData.precio_compra}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              error={errors.precio_compra}
+              required
+              placeholder="0"
+              disabled={loading}
+            />
+            
+            <Input
+              label="Precio de Venta"
+              name="precio_venta"
+              type="number"
+              step="0.01"
+              min="0"
+              value={formData.precio_venta}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              error={errors.precio_venta}
+              required
+              placeholder="0"
+              disabled={loading}
+            />
+          </div>
+        </div>
 
-            {/* Segunda fila: Precios */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Precio Compra */}
-              <div>
-                <label className="block text-xs font-bold uppercase text-blueGray-600 mb-2">
-                  Precio de Compra *
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  name="precio_compra"
-                  value={formData.precio_compra}
-                  onChange={handleChange}
-                  className={`border-0 px-3 py-3 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150 ${
-                    errors.precio_compra ? 'ring-2 ring-red-500' : ''
-                  }`}
-                  placeholder="0"
-                  disabled={loading}
-                />
-                {errors.precio_compra && (
-                  <p className="text-red-500 text-xs mt-1">{errors.precio_compra}</p>
-                )}
-              </div>
+        {/* Sección: Categorización */}
+        <div className="space-y-4">
+          
+          <Select
+            label="Categoría"
+            name="categoria_id"
+            value={formData.categoria_id}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            error={errors.categoria_id}
+            options={categoriaOptions}
+            placeholder="Seleccionar categoría"
+            required
+            disabled={loading}
+          />
+          
+          <Select
+            label="Marca"
+            name="marca_id"
+            value={formData.marca_id}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            options={marcaOptions}
+            placeholder="Seleccionar marca"
+            disabled={loading}
+          />
+        </div>
 
-              {/* Precio Venta */}
-              <div>
-                <label className="block text-xs font-bold uppercase text-blueGray-600 mb-2">
-                  Precio de Venta *
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  name="precio_venta"
-                  value={formData.precio_venta}
-                  onChange={handleChange}
-                  className={`border-0 px-3 py-3 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150 ${
-                    errors.precio_venta ? 'ring-2 ring-red-500' : ''
-                  }`}
-                  placeholder="0"
-                  disabled={loading}
-                />
-                {errors.precio_venta && (
-                  <p className="text-red-500 text-xs mt-1">{errors.precio_venta}</p>
-                )}
-              </div>
-            </div>
-
-            {/* Tercera fila: Categoría y Sede */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Categoría */}
-              <div>
-                <label className="block text-xs font-bold uppercase text-blueGray-600 mb-2">
-                  Categoría *
-                </label>
-                <select
-                  name="categoria_id"
-                  value={formData.categoria_id}
-                  onChange={handleChange}
-                  className={`border-0 px-3 py-3 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150 ${
-                    errors.categoria_id ? 'ring-2 ring-red-500' : ''
-                  }`}
-                  disabled={loading}
-                >
-                  <option value="">Seleccione una categoría</option>
-                  {Array.isArray(categorias) && categorias.map(categoria => (
-                    <option key={categoria.id} value={categoria.id}>
-                      {categoria.nombre}
-                    </option>
-                  ))}
-                </select>
-                {errors.categoria_id && (
-                  <p className="text-red-500 text-xs mt-1">{errors.categoria_id}</p>
-                )}
-              </div>
-
-              {/* Sede */}
-              <div>
-                <label className="block text-xs font-bold uppercase text-blueGray-600 mb-2">
-                  Sede *
-                </label>
-                <select
-                  name="sede_id"
-                  value={formData.sede_id}
-                  onChange={handleChange}
-                  className={`border-0 px-3 py-3 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150 ${
-                    errors.sede_id ? 'ring-2 ring-red-500' : ''
-                  }`}
-                  disabled={loading}
-                >
-                  <option value="">Seleccione una sede</option>
-                  {Array.isArray(sedes) && sedes.map(sede => (
-                    <option key={sede.id} value={sede.id}>
-                      {sede.nombre}
-                    </option>
-                  ))}
-                </select>
-                {errors.sede_id && (
-                  <p className="text-red-500 text-xs mt-1">{errors.sede_id}</p>
-                )}
-              </div>
-            </div>
-
-            {/* Cuarta fila: Cantidad Inicial */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold uppercase text-blueGray-600 mb-2">
-                  Cantidad Inicial en Inventario *
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  name="cantidad_inicial"
-                  value={formData.cantidad_inicial}
-                  onChange={handleChange}
-                  className={`border-0 px-3 py-3 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150 ${
-                    errors.cantidad_inicial ? 'ring-2 ring-red-500' : ''
-                  }`}
-                  placeholder="0"
-                  disabled={loading}
-                />
-                {errors.cantidad_inicial && (
-                  <p className="text-red-500 text-xs mt-1">{errors.cantidad_inicial}</p>
-                )}
-              </div>
-              <div>
-                {/* Campo vacío para mantener el layout */}
-              </div>
-            </div>
-
-            {/* Descripción */}
-            <div>
-              <label className="block text-xs font-bold uppercase text-blueGray-600 mb-2">
-                Descripción
-              </label>
-              <textarea
-                name="descripcion"
-                value={formData.descripcion}
+        {/* Sección: Ubicación y Stock */}
+        <div className="space-y-4">
+          
+          <div className="space-y-4">
+            <div className="relative">
+              <Select
+                label="Sede"
+                name="sede_id"
+                value={formData.sede_id}
                 onChange={handleChange}
-                rows={3}
-                className="border-0 px-3 py-3 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150"
-                placeholder="Descripción del producto (opcional)"
-                disabled={loading}
+                onBlur={handleBlur}
+                error={errors.sede_id}
+                options={sedeOptions}
+                placeholder="Seleccionar sede"
+                disabled={loading || isVendedor()}
+                required
               />
             </div>
 
-            {/* Vista previa del producto */}
-            <div className="bg-blueGray-50 rounded-lg p-4">
-              <h4 className="text-sm font-semibold text-blueGray-700 mb-2">Vista Previa</h4>
-              <div className="flex items-start gap-3">
-                <div className="bg-lightBlue-100 text-lightBlue-600 w-12 h-12 rounded-lg flex items-center justify-center">
-                  <i className="fas fa-box text-xl"></i>
+            <div className="space-y-2">
+              <Input
+                label={isEditing ? "Cantidad en Inventario" : "Cantidad Inicial en Inventario"}
+                name="cantidad_inicial"
+                type="number"
+                min="0"
+                value={formData.cantidad_inicial}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                error={errors.cantidad_inicial}
+                required={!isEditing}
+                placeholder="0"
+                disabled={loading || isEditing}
+              />
+              {/* Vista previa del producto */}
+              {(formData.nombre || formData.precio_compra || formData.precio_venta) && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-start space-x-3">
+                    <div className="bg-blue-100 text-blue-600 w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <i className="fas fa-eye text-xl"></i>
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-semibold text-blue-900 mb-2">
+                        Vista Previa del Producto
+                      </h4>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <div className="text-xs text-blue-700">
+                            <span className="font-medium">Nombre:</span> {formData.nombre || 'Sin nombre'}
+                          </div>
+                          <div className="text-xs text-blue-700">
+                            <span className="font-medium">Código:</span> {formData.codigo_barra || 'Sin código'}
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <div className="text-xs text-blue-700">
+                            <span className="font-medium">Precio compra:</span> ${parseFloat(formData.precio_compra || 0).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                          </div>
+                          <div className="text-xs text-blue-700">
+                            <span className="font-medium">Precio venta:</span> ${parseFloat(formData.precio_venta || 0).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                          </div>
+                          
+                          {formData.precio_compra && formData.precio_venta && formData.precio_compra > 0 && (
+                            <div className="text-xs">
+                              <span className="font-medium text-blue-700">Ganancia:</span>
+                              <span className={`ml-1 px-2 py-1 rounded text-xs font-bold ${
+                                ((parseFloat(formData.precio_venta) - parseFloat(formData.precio_compra)) / parseFloat(formData.precio_compra) * 100) > 30 
+                                  ? 'bg-green-100 text-green-800' 
+                                  : ((parseFloat(formData.precio_venta) - parseFloat(formData.precio_compra)) / parseFloat(formData.precio_compra) * 100) > 10
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-red-100 text-red-800'
+                              }`}>
+                                {((parseFloat(formData.precio_venta) - parseFloat(formData.precio_compra)) / parseFloat(formData.precio_compra) * 100).toFixed(1)}%
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {formData.cantidad_inicial && (
+                        <div className="mt-3 pt-2 border-t border-blue-200">
+                          <div className="text-xs text-blue-700">
+                            <i className="fas fa-warehouse mr-1"></i>
+                            <span className="font-medium">{isEditing ? "Stock actual:" : "Stock inicial:"}</span> {formData.cantidad_inicial} unidades
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <div className="font-medium text-blueGray-700">
-                    {formData.nombre || "Nombre del producto"}
-                  </div>
-                  <div className="text-sm text-blueGray-500">
-                    {formData.codigo_barra || "Código de barra"}
-                  </div>
-                  <div className="text-xs text-blueGray-400 mt-1">
-                    {formData.descripcion || "Sin descripción"}
-                  </div>
-                  <div className="flex items-center gap-4 mt-2">
-                    <div className="text-sm">
-                      <span className="text-blueGray-500">Compra: </span>
-                      <span className="font-medium text-green-600">
-                        {formatCurrency(formData.precio_compra)}
-                      </span>
-                    </div>
-                    <div className="text-sm">
-                      <span className="text-blueGray-500">Venta: </span>
-                      <span className="font-medium text-lightBlue-600">
-                        {formatCurrency(formData.precio_venta)}
-                      </span>
-                    </div>
-                    <div className="text-sm">
-                      <span className="text-blueGray-500">Margen: </span>
-                      <span className="font-medium text-indigo-600">
-                        {getMargin()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Error general */}
-            {errors.submit && (
-              <div className="bg-red-50 border border-red-200 rounded-md p-3">
-                <p className="text-red-600 text-sm">{errors.submit}</p>
-              </div>
-            )}
-          </div>
-
-          <div 
-            className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3"
-            style={{ 
-              display: 'flex', 
-              justifyContent: 'flex-end', 
-              alignItems: 'center',
-              padding: '16px 24px',
-              borderTop: '1px solid #e5e7eb',
-              gap: '12px'
-            }}
-          >
-            <button
-              type="button"
-              onClick={onCancel}
-              className="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              disabled={loading}
-              style={{ 
-                display: 'inline-flex',
-                backgroundColor: 'white',
-                color: '#374151',
-                border: '1px solid #d1d5db',
-                padding: '8px 16px',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                alignItems: 'center'
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ 
-                display: 'inline-flex',
-                backgroundColor: '#4f46e5',
-                color: 'white',
-                padding: '8px 16px',
-                borderRadius: '6px',
-                border: 'none',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                minWidth: '120px',
-                justifyContent: 'center',
-                alignItems: 'center',
-                opacity: loading ? 0.5 : 1
-              }}
-            >
-              {loading ? (
-                <>
-                  <i className="fas fa-spinner fa-spin mr-2"></i>
-                  Guardando...
-                </>
-              ) : (
-                <>
-                  <i className={`fas ${isEditing ? 'fa-save' : 'fa-plus'} mr-2`}></i>
-                  {isEditing ? "Actualizar" : "Crear"}
-                </>
               )}
-            </button>
+            </div>
           </div>
-        </form>
+        </div>
+
+
+        {errors.submit && (
+          <div className="bg-red-50 border border-red-200 rounded-md p-3">
+            <p className="text-red-600 text-sm">{errors.submit}</p>
+          </div>
+        )}
       </div>
-    </SimpleModal>
+      
+      <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+        <Button
+          type="button"
+          onClick={onCancel}
+          variant="outline"
+          className="border-gray-300 text-gray-700 hover:bg-gray-50"
+        >
+          Cancelar
+        </Button>
+        <Button
+          type="submit"
+          loading={loading}
+          icon={`fas ${isEditing ? 'fa-save' : 'fa-plus'}`}
+          className="min-w-[120px]"
+        >
+          {isEditing ? "Actualizar" : "Crear Producto"}
+        </Button>
+      </div>
+    </form>
   );
-}
+};
 
 ProductoForm.propTypes = {
   producto: PropTypes.object,
   onSubmit: PropTypes.func.isRequired,
   onCancel: PropTypes.func.isRequired,
-  isEditing: PropTypes.bool
+  isEditing: PropTypes.bool,
+  loading: PropTypes.bool
 };
+
+export default ProductoForm;

@@ -8,7 +8,7 @@ import VehiculoForm from "components/Forms/VehiculoForm.js";
 import { useToast } from "hooks/useToast.js";
 import { useAuth } from "contexts/AuthContext.js";
 
-export default function VentaForm({ onSave, onCancel }) {
+export default function VentaForm({ onSave, onCancel, preselectedVehiculoId, preselectedPlaca }) {
   const { user } = useAuth();
   const [formData, setFormData] = useState({
     sedeId: "",
@@ -37,8 +37,15 @@ export default function VentaForm({ onSave, onCancel }) {
   useEffect(() => {
     console.log('🚀 VentaForm: Componente montado');
     console.log('👤 VentaForm: Usuario al montar:', user);
+    console.log('🚗 VentaForm: Vehículo preseleccionado:', { preselectedVehiculoId, preselectedPlaca });
+    
     fetchSedes();
-    fetchProductos();
+    
+    // Solo llamar fetchProductos si no hay vehículo preseleccionado
+    // (si hay vehículo preseleccionado, se llamará después de establecer la sede)
+    if (!preselectedVehiculoId) {
+      fetchProductos();
+    }
   }, []);
 
   // Effect adicional para preseleccionar sede si el usuario se carga después
@@ -64,9 +71,23 @@ export default function VentaForm({ onSave, onCancel }) {
     }
   }, [user, sedes]);
 
+  // Effect para manejar vehículo preseleccionado desde URL
   useEffect(() => {
-    if (formData.sedeId) {
-      // Reset vehicle data when sede changes
+    if (preselectedVehiculoId && preselectedPlaca && formData.sedeId) {
+      console.log('🚗 VentaForm: Vehículo preseleccionado desde URL:', {
+        vehiculoId: preselectedVehiculoId,
+        placa: preselectedPlaca,
+        sedeId: formData.sedeId
+      });
+      
+      // Cargar información completa del vehículo desde la base de datos
+      fetchVehiculoCompleto(preselectedVehiculoId, preselectedPlaca);
+    }
+  }, [preselectedVehiculoId, preselectedPlaca, formData.sedeId]);
+
+  useEffect(() => {
+    if (formData.sedeId && !preselectedVehiculoId) {
+      // Reset vehicle data when sede changes (pero solo si no hay vehículo preseleccionado)
       setPlacaSearch("");
       setVehiculoEncontrado(null);
       setVehiculoSuggestions([]);
@@ -82,7 +103,7 @@ export default function VentaForm({ onSave, onCancel }) {
       // Fetch products for the selected sede
       fetchProductos();
     }
-  }, [formData.sedeId]);
+  }, [formData.sedeId, preselectedVehiculoId]);
 
   // Cleanup timeout al desmontar el componente
   useEffect(() => {
@@ -128,6 +149,56 @@ export default function VentaForm({ onSave, onCancel }) {
     }
   };
 
+  // Función para cargar información completa del vehículo preseleccionado
+  const fetchVehiculoCompleto = async (vehiculoId, placa) => {
+    try {
+      console.log('🔄 VentaForm: Cargando información completa del vehículo:', { vehiculoId, placa });
+      setSearchingVehiculo(true);
+      
+      // Obtener información completa del vehículo desde la base de datos
+      const vehiculoCompleto = await vehiculoService.getVehiculoById(vehiculoId);
+      console.log('✅ VentaForm: Información completa del vehículo obtenida:', vehiculoCompleto);
+      
+      // Establecer la placa en el campo de búsqueda
+      setPlacaSearch(placa);
+      
+      // Establecer el vehículo encontrado con toda la información
+      setVehiculoEncontrado(vehiculoCompleto);
+      
+      // Establecer en formData
+      setFormData(prev => ({
+        ...prev,
+        vehiculoId: vehiculoId
+      }));
+      
+      // Cargar productos para la sede ahora que tenemos sede y vehículo
+      console.log('🔄 VentaForm: Cargando productos para sede con vehículo preseleccionado...');
+      fetchProductos();
+      
+      showToast(`Vehículo ${placa} cargado automáticamente con información completa`, 'success');
+      
+    } catch (error) {
+      console.error('❌ VentaForm: Error al cargar información del vehículo:', error);
+      
+      // Si falla la carga completa, usar información mínima
+      console.log('⚠️ VentaForm: Usando información mínima del vehículo');
+      setPlacaSearch(placa);
+      setVehiculoEncontrado({
+        id: parseInt(vehiculoId),
+        placa: placa
+      });
+      setFormData(prev => ({
+        ...prev,
+        vehiculoId: vehiculoId
+      }));
+      fetchProductos();
+      
+      showToast(`Vehículo ${placa} cargado (información limitada)`, 'warning');
+    } finally {
+      setSearchingVehiculo(false);
+    }
+  };
+
   const fetchProductos = async () => {
     // No cargar productos si no hay sede seleccionada
     if (!formData.sedeId) {
@@ -149,12 +220,14 @@ export default function VentaForm({ onSave, onCancel }) {
       
       // Asegurar que data sea un array
       const productosArray = Array.isArray(data) ? data : [];
+      console.log('🔄 VentaForm: Setting productos state:', productosArray.length, 'products');
       setProductos(productosArray);
       setFilteredProducts(productosArray); // Precargar todos los productos
       
       if (productosArray.length === 0) {
         showToast(`No se encontraron productos con stock disponible en la sede seleccionada`, "warning");
       } else {
+        console.log('✅ VentaForm: Products loaded and ready for search input');
         console.log(`📦 VentaForm: ${productosArray.length} productos con stock cargados para la sede ${formData.sedeId}`);
       }
     } catch (error) {
@@ -323,6 +396,9 @@ export default function VentaForm({ onSave, onCancel }) {
 
   // Filtrar productos en tiempo real
   const handleProductSearch = (value) => {
+    console.log('🔍 VentaForm: Searching products for:', value);
+    console.log('🔍 VentaForm: Available products:', productos.length);
+    
     setSearchProduct(value);
     
     if (value.length === 0) {
@@ -1259,7 +1335,7 @@ export default function VentaForm({ onSave, onCancel }) {
             <button
               type="button"
               onClick={onCancel}
-              className="bg-blueGray-500 text-white active:bg-blueGray-600 font-bold uppercase text-xs px-4 py-2 rounded shadow hover:shadow-md outline-none focus:outline-none mr-1 ease-linear transition-all duration-150"
+              className="bg-white text-blueGray-700 border border-blueGray-300 active:bg-blueGray-50 font-bold uppercase text-xs px-4 py-2 rounded shadow hover:shadow-md hover:bg-blueGray-50 outline-none focus:outline-none mr-1 ease-linear transition-all duration-150"
             >
               Cancelar
             </button>

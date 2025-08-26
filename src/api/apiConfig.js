@@ -2,7 +2,7 @@ import axios from "axios";
 
 // API Configuration constants
 const API_CONFIG = {
-  BASE_URL: process.env.REACT_APP_API_URL || "http://localhost:8080/api/v1",
+  BASE_URL: process.env.REACT_APP_API_URL || (process.env.NODE_ENV === 'production' ? '/api/v1' : 'http://localhost:8080/api/v1'),
   TIMEOUT: 10000,
   RETRY_ATTEMPTS: 3,
   RETRY_DELAY: 1000

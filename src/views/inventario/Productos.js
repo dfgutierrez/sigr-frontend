@@ -5,6 +5,7 @@ import ProductoForm from "components/Forms/ProductoForm";
 import SimpleModal from "components/Modals/SimpleModal";
 import ConfirmationModal from "components/Modals/ConfirmationModal";
 import { useToast } from "hooks/useToastSimple";
+import { useAuth } from "contexts/AuthContext";
 
 export default function Productos() {
   const [productos, setProductos] = useState([]);
@@ -15,6 +16,7 @@ export default function Productos() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [productoToDelete, setProductoToDelete] = useState(null);
   const { showToast } = useToast();
+  const { user } = useAuth();
 
   useEffect(() => {
     fetchProductos();
@@ -23,7 +25,20 @@ export default function Productos() {
   const fetchProductos = async () => {
     try {
       setLoading(true);
-      const response = await productoService.getAll();
+      
+      // Obtener sedeId del usuario autenticado
+      let sedeId = null;
+      if (user?.sedes && Array.isArray(user.sedes) && user.sedes.length > 0) {
+        sedeId = user.sedes[0].id;
+        console.log('🏢 Using user sede:', user.sedes[0].nombre, '(ID:', sedeId, ')');
+      } else if (user?.sedeId) {
+        sedeId = user.sedeId;
+        console.log('🏢 Using user sedeId:', sedeId);
+      } else {
+        console.log('🏢 No sede found for user, fetching all products');
+      }
+      
+      const response = await productoService.getAll(sedeId);
       
       console.log('🔍 Full API response:', response);
       console.log('🔍 Response data:', response.data);
@@ -157,19 +172,22 @@ export default function Productos() {
       </div>
 
       {/* Modal de formulario */}
-      {showForm && (
-        <ProductoForm
-          producto={selectedProducto}
-          onSubmit={handleSubmitForm}
-          onCancel={handleCancelForm}
-          isEditing={isEditing}
-        />
-      )}
+      <SimpleModal isOpen={showForm} onClose={handleCancelForm}>
+        <div className="max-w-4xl w-full bg-white overflow-visible">
+          <ProductoForm
+            producto={selectedProducto}
+            onSubmit={handleSubmitForm}
+            onCancel={handleCancelForm}
+            isEditing={isEditing}
+          />
+        </div>
+      </SimpleModal>
 
       {/* Modal de confirmación de eliminación */}
       <ConfirmationModal
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
+        onCancel={() => setShowDeleteModal(false)}
         onConfirm={confirmDelete}
         title="Eliminar Producto"
         message={`¿Está seguro que desea eliminar el producto "${productoToDelete?.nombre}"? Esta acción no se puede deshacer.`}

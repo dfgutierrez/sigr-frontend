@@ -170,6 +170,7 @@ export default function Categorias() {
       <ConfirmationModal
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
+        onCancel={() => setShowDeleteModal(false)}
         onConfirm={confirmDelete}
         title="Eliminar Categoría"
         message={`¿Está seguro que desea eliminar la categoría "${categoriaToDelete?.nombre}"? Esta acción eliminará también todos los productos asociados.`}
