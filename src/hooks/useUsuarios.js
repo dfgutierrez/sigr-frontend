@@ -62,7 +62,6 @@ export const useUsuarios = () => {
 
   const createUsuario = async (userData, foto = null) => {
     try {
-      setLoading(true);
       setError(null);
       await usuarioService.createUsuario(userData, foto);
       await fetchUsuarios(); // Reload users
@@ -71,14 +70,11 @@ export const useUsuarios = () => {
       const errorMessage = err.response?.data?.message || err.message || 'Error al crear usuario';
       setError(errorMessage);
       throw new Error(errorMessage);
-    } finally {
-      setLoading(false);
     }
   };
 
   const updateUsuario = async (id, userData, foto = null) => {
     try {
-      setLoading(true);
       setError(null);
       await usuarioService.updateUsuario(id, userData, foto);
       await fetchUsuarios(); // Reload users
@@ -87,14 +83,11 @@ export const useUsuarios = () => {
       const errorMessage = err.response?.data?.message || err.message || 'Error al actualizar usuario';
       setError(errorMessage);
       throw new Error(errorMessage);
-    } finally {
-      setLoading(false);
     }
   };
 
   const toggleUsuarioEstado = async (id) => {
     try {
-      setLoading(true);
       setError(null);
       await usuarioService.toggleUsuarioEstado(id);
       await fetchUsuarios(); // Reload users
@@ -103,8 +96,6 @@ export const useUsuarios = () => {
       const errorMessage = err.response?.data?.message || err.message || 'Error al cambiar estado del usuario';
       setError(errorMessage);
       throw new Error(errorMessage);
-    } finally {
-      setLoading(false);
     }
   };
 

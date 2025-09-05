@@ -76,6 +76,16 @@ export default function MarcaTable({
               <tr>
                 <th
                   className={
+                    "px-6 align-middle border border-solid py-3 text-xs uppercase border-l-0 border-r-0 whitespace-nowrap font-semibold text-left " +
+                    (color === "light"
+                      ? "bg-blueGray-50 text-blueGray-500 border-blueGray-100"
+                      : "bg-lightBlue-800 text-lightBlue-300 border-lightBlue-700")
+                  }
+                >
+                  ID
+                </th>
+                <th
+                  className={
                     "px-6 align-middle border border-solid py-3 text-xs uppercase border-l-0 border-r-0 whitespace-nowrap font-semibold text-left cursor-pointer hover:bg-blueGray-50 " +
                     (color === "light"
                       ? "bg-blueGray-50 text-blueGray-500 border-blueGray-100"
@@ -87,16 +97,6 @@ export default function MarcaTable({
                     Nombre
                     <i className={getSortIcon()}></i>
                   </div>
-                </th>
-                <th
-                  className={
-                    "px-6 align-middle border border-solid py-3 text-xs uppercase border-l-0 border-r-0 whitespace-nowrap font-semibold text-left " +
-                    (color === "light"
-                      ? "bg-blueGray-50 text-blueGray-500 border-blueGray-100"
-                      : "bg-lightBlue-800 text-lightBlue-300 border-lightBlue-700")
-                  }
-                >
-                  ID
                 </th>
                 <th
                   className={
@@ -130,6 +130,11 @@ export default function MarcaTable({
                 sortedMarcas.map((marca) => (
                   <tr key={marca.id} className="hover:bg-blueGray-50">
                     <td className="border-t-0 px-6 align-middle border-l-0 border-r-0 text-xs whitespace-nowrap p-4">
+                      <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-indigo-800 bg-indigo-200 rounded-full">
+                        #{marca.id}
+                      </span>
+                    </td>
+                    <td className="border-t-0 px-6 align-middle border-l-0 border-r-0 text-xs whitespace-nowrap p-4">
                       <div className="flex items-center">
                         <span className="bg-green-100 text-green-600 w-8 h-8 rounded-full flex items-center justify-center mr-3">
                           <i className="fas fa-bookmark text-xs"></i>
@@ -138,11 +143,6 @@ export default function MarcaTable({
                           {marca.nombre}
                         </span>
                       </div>
-                    </td>
-                    <td className="border-t-0 px-6 align-middle border-l-0 border-r-0 text-xs whitespace-nowrap p-4">
-                      <span className="bg-blueGray-100 text-blueGray-600 px-2 py-1 rounded-full text-xs font-bold">
-                        ID: {marca.id}
-                      </span>
                     </td>
                     <td className="border-t-0 px-6 align-middle border-l-0 border-r-0 text-xs whitespace-nowrap p-4">
                       <div className="flex space-x-2">

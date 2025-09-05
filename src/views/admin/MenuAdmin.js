@@ -3,6 +3,7 @@ import MenuTable from "components/Cards/MenuTable.js";
 import MenuForm from "components/Forms/MenuForm.js";
 import RolePermissionsModal from "components/Modals/RolePermissionsModal.js";
 import ConfirmationModal from "components/Modals/ConfirmationModal.js";
+import SimpleModal from "components/Modals/SimpleModal";
 import ToastContainer from "components/Notifications/ToastContainer.js";
 import { menuAdminService } from "api/menuAdminService.js";
 import { useAuth } from "contexts/AuthContext.js";
@@ -21,6 +22,7 @@ export default function MenuAdmin() {
   const [editingMenu, setEditingMenu] = useState(null);
   const [menuToDelete, setMenuToDelete] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -111,6 +113,7 @@ export default function MenuAdmin() {
 
   const handleFormSubmit = async (menuData) => {
     try {
+      setFormLoading(true);
       if (editingMenu) {
         await menuAdminService.updateMenu(editingMenu.id, menuData);
         success(`Menú "${menuData.nombre}" actualizado correctamente`);
@@ -124,6 +127,8 @@ export default function MenuAdmin() {
       console.error("Error saving menu:", submitError);
       error(submitError.message || "Error al guardar el menú");
       throw submitError;
+    } finally {
+      setFormLoading(false);
     }
   };
 
@@ -399,12 +404,17 @@ export default function MenuAdmin() {
 
       {/* Modal de formulario */}
       {showForm && (
-        <MenuForm
-          menu={editingMenu}
-          roles={roles}
-          onSubmit={handleFormSubmit}
-          onCancel={() => setShowForm(false)}
-        />
+        <SimpleModal isOpen={showForm} onClose={() => setShowForm(false)}>
+          <div className="max-w-4xl w-full bg-white overflow-visible">
+            <MenuForm
+              menu={editingMenu}
+              roles={roles}
+              onSubmit={handleFormSubmit}
+              onCancel={() => setShowForm(false)}
+              loading={formLoading}
+            />
+          </div>
+        </SimpleModal>
       )}
 
       {/* Modal de permisos */}

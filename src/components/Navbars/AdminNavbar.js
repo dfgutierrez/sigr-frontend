@@ -1,12 +1,38 @@
 import React, { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { useAuth } from "contexts/AuthContext.js";
 import { sedeService } from "api/sedeService.js";
 import UserDropdown from "components/Dropdowns/UserDropdown.js";
 
 export default function Navbar() {
   const { user } = useAuth();
+  const location = useLocation();
   const [currentSede, setCurrentSede] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Mapeo de rutas a nombres de páginas
+  const getPageTitle = (pathname) => {
+    const routeMap = {
+      '/admin/dashboard': 'Dashboard',
+      '/admin/usuarios': 'Gestión de Usuarios',
+      '/admin/sedes': 'Gestión de Sedes', 
+      '/admin/roles': 'Gestión de Roles',
+      '/admin/menus': 'Administrar Menús',
+      '/inventario/productos': 'Gestión de Productos',
+      '/inventario/categorias': 'Gestión de Categorías',
+      '/inventario/marcas': 'Gestión de Marcas',
+      '/inventario/inventario-sedes': 'Inventario por Sede',
+      '/vehiculos': 'Gestión de Vehículos',
+      '/ventas/historial': 'Historial de Ventas',
+      '/ventas/nueva': 'Nueva Venta',
+      '/reportes': 'Dashboard de Reportes',
+      '/reportes/ventas-movimientos': 'Reportes de Ventas',
+      '/reportes/historial-vehiculos': 'Historial de Vehículos',
+      '/reportes/inventario-general': 'Reporte de Inventario'
+    };
+    
+    return routeMap[pathname] || 'Dashboard';
+  };
 
   useEffect(() => {
     fetchUserSede();
@@ -45,7 +71,7 @@ export default function Navbar() {
             href="#pablo"
             onClick={(e) => e.preventDefault()}
           >
-            Dashboard
+            {getPageTitle(location.pathname)}
           </a>
           {/* Sede Info */}
           <div className="md:flex hidden flex-row flex-wrap items-center lg:ml-auto mr-3">

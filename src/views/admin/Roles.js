@@ -130,7 +130,10 @@ export default function Roles() {
                       Nombre
                     </th>
                     <th className="px-6 bg-blueGray-50 text-blueGray-500 align-middle border border-solid border-blueGray-100 py-3 text-xs uppercase border-l-0 border-r-0 whitespace-nowrap font-semibold text-left">
-                      Descripción
+                      <i className="fas fa-users mr-1"></i>Usuarios
+                    </th>
+                    <th className="px-6 bg-blueGray-50 text-blueGray-500 align-middle border border-solid border-blueGray-100 py-3 text-xs uppercase border-l-0 border-r-0 whitespace-nowrap font-semibold text-left">
+                      <i className="fas fa-list mr-1"></i>Menús
                     </th>
                     <th className="px-6 bg-blueGray-50 text-blueGray-500 align-middle border border-solid border-blueGray-100 py-3 text-xs uppercase border-l-0 border-r-0 whitespace-nowrap font-semibold text-left">
                       Acciones
@@ -148,7 +151,26 @@ export default function Roles() {
                         {rol.nombre}
                       </td>
                       <td className="border-t-0 px-6 align-middle border-l-0 border-r-0 text-xs whitespace-nowrap p-4">
-                        {rol.descripcion}
+                        <div className="flex items-center">
+                          <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-blue-800 bg-blue-200 rounded-full">
+                            <i className="fas fa-user-friends mr-1"></i>
+                            {rol.cantidadUsuarios || 0}
+                          </span>
+                          <span className="ml-1 text-blueGray-500">
+                            {rol.cantidadUsuarios === 1 ? 'usuario' : 'usuarios'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="border-t-0 px-6 align-middle border-l-0 border-r-0 text-xs whitespace-nowrap p-4">
+                        <div className="flex items-center">
+                          <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-green-800 bg-green-200 rounded-full">
+                            <i className="fas fa-bars mr-1"></i>
+                            {rol.cantidadMenus || 0}
+                          </span>
+                          <span className="ml-1 text-blueGray-500">
+                            {rol.cantidadMenus === 1 ? 'menú' : 'menús'}
+                          </span>
+                        </div>
                       </td>
                       <td className="border-t-0 px-6 align-middle border-l-0 border-r-0 text-xs whitespace-nowrap p-4">
                         <button

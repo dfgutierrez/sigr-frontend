@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import SimpleModal from "components/Modals/SimpleModal.js";
+import Button from "components/UI/Button";
+import Input from "components/UI/Input";
+import Select from "components/UI/Select";
 
-export default function MenuForm({ menu, roles = [], onSubmit, onCancel }) {
+export default function MenuForm({ menu, roles = [], onSubmit, onCancel, loading = false }) {
   const [formData, setFormData] = useState({
     nombre: "",
     ruta: "",
@@ -11,9 +13,7 @@ export default function MenuForm({ menu, roles = [], onSubmit, onCancel }) {
     orden: 1,
     roleIds: []
   });
-  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
-  const [nameValidating, setNameValidating] = useState(false);
 
   // Opciones de iconos disponibles (según el formato de tu API)
   const iconOptions = [
@@ -41,12 +41,12 @@ export default function MenuForm({ menu, roles = [], onSubmit, onCancel }) {
     "Gestión",
     "Inventario",
     "Vehículos",
-    "Reportes",
-    "Sistema"
+    "Ventas"
   ];
 
   useEffect(() => {
     if (menu) {
+      // Editando un menú existente - usar los datos del menú
       setFormData({
         nombre: menu.nombre || "",
         ruta: menu.ruta || "",
@@ -55,8 +55,17 @@ export default function MenuForm({ menu, roles = [], onSubmit, onCancel }) {
         orden: menu.orden || 1,
         roleIds: menu.roleIds || []
       });
+    } else {
+      // Creando un nuevo menú - preseleccionar ADMINISTRADOR por defecto
+      const adminRole = roles.find(role => role.nombre === "ADMINISTRADOR");
+      if (adminRole) {
+        setFormData(prev => ({
+          ...prev,
+          roleIds: [adminRole.id]
+        }));
+      }
     }
-  }, [menu]);
+  }, [menu, roles]);
 
 
   const validateForm = () => {
@@ -91,14 +100,12 @@ export default function MenuForm({ menu, roles = [], onSubmit, onCancel }) {
       return;
     }
 
-    setLoading(true);
     try {
       await onSubmit(formData);
     } catch (error) {
       console.error("Error submitting form:", error);
       setErrors({ submit: "Error al guardar el menú" });
-    } finally {
-      setLoading(false);
+      throw error;
     }
   };
 
@@ -109,10 +116,16 @@ export default function MenuForm({ menu, roles = [], onSubmit, onCancel }) {
       [name]: type === 'checkbox' ? checked : value
     }));
     
-    // Limpiar error del campo cuando el usuario empiece a escribir
     if (errors[name]) {
-      setErrors(prev => ({ ...prev, [name]: "" }));
+      setErrors(prev => ({
+        ...prev,
+        [name]: ''
+      }));
     }
+  };
+
+  const handleBlur = () => {
+    // Placeholder para mantener compatibilidad con ProductoForm
   };
 
   const handleRoleToggle = (roleId) => {
@@ -144,139 +157,90 @@ export default function MenuForm({ menu, roles = [], onSubmit, onCancel }) {
     return selectedOption ? selectedOption.icon : "fas fa-list";
   };
 
+  // Preparar opciones para los componentes Select
+  const categoriaOptions = categoryOptions.map(categoria => ({
+    value: categoria,
+    label: categoria,
+    key: categoria
+  }));
+
+  const iconOptionsForSelect = iconOptions.map(icon => ({
+    value: icon.value,
+    label: icon.label,
+    key: icon.value
+  }));
+
   return (
-    <SimpleModal isOpen={true} onClose={onCancel}>
-      <div 
-        className="max-w-lg w-full" 
-        style={{
-          width: '32rem',
-          backgroundColor: 'white',
-          borderRadius: '8px',
-          overflow: 'visible'
-        }}
-      >
-        <form onSubmit={handleSubmit}>
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900">
-              {menu ? "Editar Menú" : "Crear Nuevo Menú"}
-            </h3>
-          </div>
+    <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+      <form onSubmit={handleSubmit}>
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-medium text-gray-900">
+            {menu ? "Editar Menú" : "Crear Nuevo Menú Diego"}
+          </h3>
+        </div>
 
-          <div className="px-6 py-4 space-y-4">
-            {/* Nombre */}
-            <div>
-              <label className="block text-xs font-bold uppercase text-blueGray-600 mb-2">
-                Nombre del Menú *
-              </label>
-              <input
-                type="text"
-                name="nombre"
-                value={formData.nombre}
-                onChange={handleChange}
-                className={`border-0 px-3 py-3 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150 ${
-                  errors.nombre ? 'ring-2 ring-red-500' : ''
-                }`}
-                placeholder="Ej: Dashboard, Usuarios, etc."
-                disabled={loading}
-              />
-              {errors.nombre && (
-                <p className="text-red-500 text-xs mt-1">{errors.nombre}</p>
-              )}
-            </div>
+      <div className="px-6 py-4 space-y-4 max-h-96 overflow-y-auto">
+        <Input
+          label="Nombre del Menú"
+          name="nombre"
+          value={formData.nombre}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          error={errors.nombre}
+          required
+          placeholder="Ej: Dashboard, Usuarios, etc."
+          disabled={loading}
+        />
 
-            {/* Ruta */}
-            <div>
-              <label className="block text-xs font-bold uppercase text-blueGray-600 mb-2">
-                Ruta *
-              </label>
-              <input
-                type="text"
-                name="ruta"
-                value={formData.ruta}
-                onChange={handleChange}
-                className={`border-0 px-3 py-3 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150 ${
-                  errors.ruta ? 'ring-2 ring-red-500' : ''
-                }`}
-                placeholder="Ej: /admin/dashboard, /usuarios"
-                disabled={loading}
-              />
-              {errors.ruta && (
-                <p className="text-red-500 text-xs mt-1">{errors.ruta}</p>
-              )}
-            </div>
+        <Input
+          label="Ruta"
+          name="ruta"
+          value={formData.ruta}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          error={errors.ruta}
+          required
+          placeholder="Ej: /admin/dashboard, /usuarios"
+          disabled={loading}
+        />
 
-            {/* Icono */}
-            <div>
-              <label className="block text-xs font-bold uppercase text-blueGray-600 mb-2">
-                Icono
-              </label>
-              <div className="relative">
-                <select
-                  name="icono"
-                  value={formData.icono}
-                  onChange={handleChange}
-                  className="border-0 px-3 py-3 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150 pr-10"
-                  disabled={loading}
-                >
-                  {iconOptions.map(option => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                  <i className={`${getSelectedIcon()} text-blueGray-400`}></i>
-                </div>
-              </div>
-            </div>
+        <Select
+          label="Icono"
+          name="icono"
+          value={formData.icono}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          options={iconOptionsForSelect}
+          placeholder="Seleccionar icono"
+          disabled={loading}
+        />
 
-            {/* Categoría */}
-            <div>
-              <label className="block text-xs font-bold uppercase text-blueGray-600 mb-2">
-                Categoría *
-              </label>
-              <input
-                type="text"
-                name="categoria"
-                value={formData.categoria}
-                onChange={handleChange}
-                list="categories"
-                className={`border-0 px-3 py-3 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150 ${
-                  errors.categoria ? 'ring-2 ring-red-500' : ''
-                }`}
-                placeholder="Ej: Administración, Gestión, etc."
-                disabled={loading}
-              />
-              <datalist id="categories">
-                {categoryOptions.map(category => (
-                  <option key={category} value={category} />
-                ))}
-              </datalist>
-              {errors.categoria && (
-                <p className="text-red-500 text-xs mt-1">{errors.categoria}</p>
-              )}
-            </div>
+        <Select
+          label="Categoría"
+          name="categoria"
+          value={formData.categoria}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          error={errors.categoria}
+          options={categoriaOptions}
+          placeholder="Seleccionar categoría"
+          required
+          disabled={loading}
+        />
 
-            {/* Orden */}
-            <div>
-              <label className="block text-xs font-bold uppercase text-blueGray-600 mb-2">
-                Orden *
-              </label>
-              <input
-                type="number"
-                name="orden"
-                value={formData.orden}
-                onChange={handleChange}
-                min="1"
-                className={`border-0 px-3 py-3 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150 ${
-                  errors.orden ? 'ring-2 ring-red-500' : ''
-                }`}
-                disabled={loading}
-              />
-              {errors.orden && (
-                <p className="text-red-500 text-xs mt-1">{errors.orden}</p>
-              )}
-            </div>
+        <Input
+          label="Orden"
+          name="orden"
+          type="number"
+          min="1"
+          value={formData.orden}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          error={errors.orden}
+          required
+          placeholder="1"
+          disabled={loading}
+        />
 
             {/* Gestión de Roles */}
             <div>
@@ -336,36 +300,20 @@ export default function MenuForm({ menu, roles = [], onSubmit, onCancel }) {
                 )}
               </div>
               
-              {(formData.roleIds || []).length === 0 && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-md p-2 mt-2">
-                  <div className="flex">
-                    <i className="fas fa-exclamation-triangle text-yellow-400 mr-2 mt-0.5 text-xs"></i>
-                    <div className="text-xs text-yellow-700">
-                      <strong>Advertencia:</strong> Sin roles asignados, el menú no será visible para ningún usuario.
+              <div className="mt-2 h-12">
+                {(formData.roleIds || []).length === 0 && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-md p-2">
+                    <div className="flex">
+                      <i className="fas fa-exclamation-triangle text-yellow-400 mr-2 mt-0.5 text-xs"></i>
+                      <div className="text-xs text-yellow-700">
+                        <strong>Advertencia:</strong> Sin roles asignados, el menú no será visible para ningún usuario.
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
-
-            {/* Vista previa del icono */}
-            <div className="bg-blueGray-50 rounded-lg p-4">
-              <h4 className="text-sm font-semibold text-blueGray-700 mb-2">Vista Previa</h4>
-              <div className="flex items-center gap-3">
-                <i className={`${getSelectedIcon()} text-xl text-blueGray-600`}></i>
-                <div>
-                  <div className="font-medium text-blueGray-700">{formData.nombre || "Nombre del menú"}</div>
-                  <div className="text-sm text-blueGray-500">{formData.ruta || "/ruta/del/menu"}</div>
-                  <div className="text-xs text-blueGray-400">{formData.categoria || "Categoría"}</div>
-                  <div className="text-xs text-indigo-600 mt-1">
-                    {(formData.roleIds || []).length > 0 
-                      ? `Accesible para ${(formData.roleIds || []).length} rol${(formData.roleIds || []).length !== 1 ? 'es' : ''}`
-                      : 'Sin acceso configurado'
-                    }
-                  </div>
-                </div>
+                )}
               </div>
             </div>
+
 
             {/* Error general */}
             {errors.submit && (
@@ -375,69 +323,26 @@ export default function MenuForm({ menu, roles = [], onSubmit, onCancel }) {
             )}
           </div>
 
-          <div 
-            className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3"
-            style={{ 
-              display: 'flex', 
-              justifyContent: 'flex-end', 
-              alignItems: 'center',
-              padding: '16px 24px',
-              borderTop: '1px solid #e5e7eb',
-              gap: '12px'
-            }}
-          >
-            <button
-              type="button"
-              onClick={onCancel}
-              className="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              disabled={loading}
-              style={{ 
-                display: 'inline-flex',
-                backgroundColor: 'white',
-                color: '#374151',
-                border: '1px solid #d1d5db',
-                padding: '8px 16px',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                alignItems: 'center'
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ 
-                display: 'inline-flex',
-                backgroundColor: '#4f46e5',
-                color: 'white',
-                padding: '8px 16px',
-                borderRadius: '6px',
-                border: 'none',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                minWidth: '100px',
-                justifyContent: 'center',
-                alignItems: 'center',
-                opacity: loading ? 0.5 : 1
-              }}
-            >
-              {loading ? (
-                <>
-                  <i className="fas fa-spinner fa-spin mr-2"></i>
-                  Guardando...
-                </>
-              ) : (
-                <>
-                  <i className={`fas ${menu ? 'fa-save' : 'fa-plus'} mr-2`}></i>
-                  {menu ? "Actualizar" : "Crear"}
-                </>
-              )}
-            </button>
-          </div>
-        </form>
+      <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+        <Button
+          type="button"
+          onClick={onCancel}
+          variant="outline"
+          className="border-gray-300 text-gray-700 hover:bg-gray-50"
+        >
+          Cancelar
+        </Button>
+        <Button
+          type="submit"
+          loading={loading}
+          icon={`fas ${menu ? 'fa-save' : 'fa-plus'}`}
+          className="min-w-[120px]"
+        >
+          {menu ? "Actualizar" : "Crear Menú"}
+        </Button>
       </div>
-    </SimpleModal>
+      </form>
+    </div>
   );
 }
 
@@ -446,4 +351,5 @@ MenuForm.propTypes = {
   roles: PropTypes.array,
   onSubmit: PropTypes.func.isRequired,
   onCancel: PropTypes.func.isRequired,
+  loading: PropTypes.bool
 };

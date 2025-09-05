@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { reporteService } from "api/reporteService.js";
 import { sedeService } from "api/sedeService.js";
 import { useToast } from "hooks/useToast.js";
+import * as XLSX from 'xlsx';
 
 export default function VentasMovimientos() {
   const [sedes, setSedes] = useState([]);
@@ -15,6 +16,8 @@ export default function VentasMovimientos() {
   const [reporteComparativo, setReporteComparativo] = useState([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('ventas');
+  const [downloadingExcel, setDownloadingExcel] = useState(false);
+  const [downloadingCSV, setDownloadingCSV] = useState(false);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -83,6 +86,175 @@ export default function VentasMovimientos() {
     return new Date(dateString).toLocaleDateString('es-ES');
   };
 
+  // Función para verificar si hay datos disponibles para descargar
+  const hasReportData = () => {
+    if (activeTab === 'ventas') {
+      return reporteVentas !== null;
+    } else if (activeTab === 'movimientos') {
+      return reporteMovimientos !== null;
+    } else if (activeTab === 'comparativo') {
+      return reporteComparativo.length > 0;
+    }
+    return false;
+  };
+
+  // Función para descargar reporte en Excel (.xlsx)
+  const downloadReporteExcel = async () => {
+    try {
+      setDownloadingExcel(true);
+      
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      let data = [];
+      let sheetName = '';
+      let fileName = '';
+      
+      const fechaActual = new Date().toISOString().split('T')[0];
+      const sedeNombre = selectedSede ? sedes.find(s => s.id.toString() === selectedSede)?.nombre || 'sede' : 'todas_sedes';
+      
+      if (activeTab === 'ventas' && reporteVentas) {
+        data = [{
+          'Sede': reporteVentas.sedeNombre,
+          'Período': `${formatDate(reporteVentas.fechaInicio)} - ${formatDate(reporteVentas.fechaFin)}`,
+          'Total Ventas': reporteVentas.totalVentas,
+          'Cantidad de Ventas': reporteVentas.cantidadVentas,
+          'Promedio por Venta': reporteVentas.promedioVenta,
+          'Producto Más Vendido': reporteVentas.productoMasVendido?.productoNombre || 'N/A',
+          'Cantidad Vendida Producto Top': reporteVentas.productoMasVendido?.cantidadVendida || 0
+        }];
+        sheetName = 'Reporte Ventas';
+        fileName = `reporte_ventas_${sedeNombre}_${fechaActual}.xlsx`;
+      } else if (activeTab === 'movimientos' && reporteMovimientos) {
+        data = [{
+          'Sede': reporteMovimientos.sedeNombre,
+          'Período': `${formatDate(reporteMovimientos.fechaInicio)} - ${formatDate(reporteMovimientos.fechaFin)}`,
+          'Total Ingresos': reporteMovimientos.totalIngresos,
+          'Valor Total Ingresos': reporteMovimientos.valorTotalIngresos,
+          'Total Ventas': reporteMovimientos.totalVentas,
+          'Valor Total Ventas': reporteMovimientos.valorTotalVentas,
+          'Margen de Beneficio': reporteMovimientos.margenBeneficio
+        }];
+        sheetName = 'Reporte Movimientos';
+        fileName = `reporte_movimientos_${sedeNombre}_${fechaActual}.xlsx`;
+      } else if (activeTab === 'comparativo' && reporteComparativo.length > 0) {
+        data = reporteComparativo.map(sede => ({
+          'Sede': sede.sedeNombre,
+          'Total Ventas': sede.totalVentas,
+          'Cantidad de Ventas': sede.cantidadVentas,
+          'Promedio por Venta': sede.promedioVenta
+        }));
+        sheetName = 'Comparativo Sedes';
+        fileName = `comparativo_sedes_${fechaActual}.xlsx`;
+      } else {
+        showToast('No hay datos para descargar', 'warning');
+        setDownloadingExcel(false);
+        return;
+      }
+      
+      // Crear workbook y worksheet
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      
+      // Descargar archivo
+      XLSX.writeFile(wb, fileName);
+      
+      showToast(`Archivo ${fileName} descargado exitosamente`, 'success');
+      
+    } catch (error) {
+      console.error('Error downloading Excel report:', error);
+      showToast('Error al descargar el reporte Excel', 'error');
+    } finally {
+      setDownloadingExcel(false);
+    }
+  };
+
+  // Función para descargar reporte en CSV
+  const downloadReporteCSV = async () => {
+    try {
+      setDownloadingCSV(true);
+      
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      let data = [];
+      let fileName = '';
+      
+      const fechaActual = new Date().toISOString().split('T')[0];
+      const sedeNombre = selectedSede ? sedes.find(s => s.id.toString() === selectedSede)?.nombre || 'sede' : 'todas_sedes';
+      
+      if (activeTab === 'ventas' && reporteVentas) {
+        data = [{
+          'Sede': reporteVentas.sedeNombre,
+          'Período': `${formatDate(reporteVentas.fechaInicio)} - ${formatDate(reporteVentas.fechaFin)}`,
+          'Total Ventas': reporteVentas.totalVentas,
+          'Cantidad de Ventas': reporteVentas.cantidadVentas,
+          'Promedio por Venta': reporteVentas.promedioVenta,
+          'Producto Más Vendido': reporteVentas.productoMasVendido?.productoNombre || 'N/A',
+          'Cantidad Vendida Producto Top': reporteVentas.productoMasVendido?.cantidadVendida || 0
+        }];
+        fileName = `reporte_ventas_${sedeNombre}_${fechaActual}.csv`;
+      } else if (activeTab === 'movimientos' && reporteMovimientos) {
+        data = [{
+          'Sede': reporteMovimientos.sedeNombre,
+          'Período': `${formatDate(reporteMovimientos.fechaInicio)} - ${formatDate(reporteMovimientos.fechaFin)}`,
+          'Total Ingresos': reporteMovimientos.totalIngresos,
+          'Valor Total Ingresos': reporteMovimientos.valorTotalIngresos,
+          'Total Ventas': reporteMovimientos.totalVentas,
+          'Valor Total Ventas': reporteMovimientos.valorTotalVentas,
+          'Margen de Beneficio': reporteMovimientos.margenBeneficio
+        }];
+        fileName = `reporte_movimientos_${sedeNombre}_${fechaActual}.csv`;
+      } else if (activeTab === 'comparativo' && reporteComparativo.length > 0) {
+        data = reporteComparativo.map(sede => ({
+          'Sede': sede.sedeNombre,
+          'Total Ventas': sede.totalVentas,
+          'Cantidad de Ventas': sede.cantidadVentas,
+          'Promedio por Venta': sede.promedioVenta
+        }));
+        fileName = `comparativo_sedes_${fechaActual}.csv`;
+      } else {
+        showToast('No hay datos para descargar', 'warning');
+        setDownloadingCSV(false);
+        return;
+      }
+      
+      // Convertir a CSV
+      const headers = Object.keys(data[0]);
+      const csvContent = [
+        headers.join(','), // Header row
+        ...data.map(row => 
+          headers.map(header => {
+            const value = row[header];
+            // Escapar valores que contengan comas o comillas
+            if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+              return `"${value.replace(/"/g, '""')}"`;
+            }
+            return value;
+          }).join(',')
+        )
+      ].join('\n');
+
+      // Crear y descargar archivo
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', fileName);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      showToast(`Archivo ${fileName} descargado exitosamente`, 'success');
+      
+    } catch (error) {
+      console.error('Error downloading CSV report:', error);
+      showToast('Error al descargar el reporte CSV', 'error');
+    } finally {
+      setDownloadingCSV(false);
+    }
+  };
+
   return (
     <>
       <div className="flex flex-wrap">
@@ -94,6 +266,60 @@ export default function VentasMovimientos() {
                   <h3 className="font-semibold text-base text-blueGray-700">
                     Reportes de Ventas y Movimientos
                   </h3>
+                </div>
+                <div className="relative w-full px-4 max-w-full flex-grow flex-1 text-right">
+                  <button
+                    className={`font-bold uppercase text-xs px-4 py-2 rounded shadow hover:shadow-md outline-none focus:outline-none mr-2 mb-1 ease-linear transition-all duration-150 min-w-[140px] ${
+                      downloadingExcel 
+                        ? 'bg-green-400 text-white cursor-not-allowed opacity-75' 
+                        : !hasReportData()
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-green-500 text-white hover:bg-green-600 active:bg-green-700'
+                    }`}
+                    style={{
+                      backgroundColor: downloadingExcel 
+                        ? '#10b981' 
+                        : !hasReportData()
+                        ? '#d1d5db'
+                        : '#059669',
+                      color: downloadingExcel || hasReportData()
+                        ? '#ffffff'
+                        : '#6b7280'
+                    }}
+                    type="button"
+                    onClick={downloadReporteExcel}
+                    disabled={downloadingExcel || !hasReportData()}
+                    title="Descargar reporte en Excel (.xlsx)"
+                  >
+                    <i className={`${downloadingExcel ? 'fas fa-spinner fa-spin' : 'fas fa-file-excel'} mr-2`}></i>
+                    {downloadingExcel ? 'Descargando...' : 'Descargar Excel'}
+                  </button>
+                  <button
+                    className={`font-bold uppercase text-xs px-4 py-2 rounded shadow hover:shadow-md outline-none focus:outline-none mr-2 mb-1 ease-linear transition-all duration-150 min-w-[140px] ${
+                      downloadingCSV 
+                        ? 'bg-blue-400 text-white cursor-not-allowed opacity-75' 
+                        : !hasReportData()
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-blue-500 text-white hover:bg-blue-600 active:bg-blue-700'
+                    }`}
+                    style={{
+                      backgroundColor: downloadingCSV 
+                        ? '#60a5fa' 
+                        : !hasReportData()
+                        ? '#d1d5db'
+                        : '#3b82f6',
+                      color: downloadingCSV || hasReportData()
+                        ? '#ffffff'
+                        : '#6b7280'
+                    }}
+                    type="button"
+                    onClick={downloadReporteCSV}
+                    disabled={downloadingCSV || !hasReportData()}
+                    title="Descargar reporte en CSV"
+                  >
+                    <i className={`${downloadingCSV ? 'fas fa-spinner fa-spin' : 'fas fa-file-csv'} mr-2`}></i>
+                    {downloadingCSV ? 'Descargando...' : 'Descargar CSV'}
+                  </button>
                 </div>
               </div>
               

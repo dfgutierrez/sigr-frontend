@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useHistory } from "react-router-dom";
 import { ventaService } from "api/ventaService.js";
 import { productoService } from "api/productoService.js";
 import { sedeService } from "api/sedeService.js";
@@ -10,6 +11,7 @@ import { useAuth } from "contexts/AuthContext.js";
 
 export default function VentaForm({ onSave, onCancel, preselectedVehiculoId, preselectedPlaca }) {
   const { user } = useAuth();
+  const history = useHistory();
   const [formData, setFormData] = useState({
     sedeId: "",
     vehiculoId: "",
@@ -381,13 +383,21 @@ export default function VentaForm({ onSave, onCancel, preselectedVehiculoId, pre
     setShowVehiculoForm(true);
   };
 
-  const handleVehiculoFormSave = () => {
+  const handleVehiculoFormSave = (vehiculoCreado = null) => {
     setShowVehiculoForm(false);
-    // Clear the search after creating a new vehicle
-    setPlacaSearch("");
-    setVehiculoEncontrado(null);
-    setFormData(prev => ({ ...prev, vehiculoId: "" }));
-    showToast("Vehículo creado exitosamente. Puede buscarlo ahora por su placa.", "success");
+    
+    // Si se creó un vehículo nuevo, redirigir con sus parámetros
+    if (vehiculoCreado) {
+      console.log('🚗 Vehículo creado en VentaForm, redirigiendo:', vehiculoCreado);
+      history.push(`/ventas/nueva?vehiculoId=${vehiculoCreado.id}&placa=${encodeURIComponent(vehiculoCreado.placa)}`);
+      showToast("Vehículo creado exitosamente. Redirección aplicada.", "success");
+    } else {
+      // Limpiar búsqueda si no hay vehículo creado
+      setPlacaSearch("");
+      setVehiculoEncontrado(null);
+      setFormData(prev => ({ ...prev, vehiculoId: "" }));
+      showToast("Vehículo creado exitosamente. Puede buscarlo ahora por su placa.", "success");
+    }
   };
 
   const handleVehiculoFormCancel = () => {
@@ -728,6 +738,8 @@ export default function VentaForm({ onSave, onCancel, preselectedVehiculoId, pre
       console.log('✅ Venta registrada:', ventaCreada);
       
       // Paso 2: Descontar productos del inventario usando el nuevo endpoint
+      // COMENTADO: No consumir el servicio deduct-stock por solicitud del usuario
+      /*
       console.log('📦 Paso 2: Descontando productos del inventario...');
       const inventoryErrors = [];
       
@@ -779,6 +791,10 @@ export default function VentaForm({ onSave, onCancel, preselectedVehiculoId, pre
           "warning"
         );
       }
+      */
+      
+      // Solo mostrar mensaje de venta creada sin descuento de inventario
+      showToast("Venta procesada exitosamente", "success");
       
       // Pequeña pausa para que se vea el toast y luego redireccionar
       setTimeout(() => {
@@ -840,14 +856,6 @@ export default function VentaForm({ onSave, onCancel, preselectedVehiculoId, pre
               <div className="relative w-full mb-3">
                 <label className="block uppercase text-blueGray-600 text-xs font-bold mb-2 flex items-center">
                   Sede *
-                  {formData.sedeId && user && (
-                    ((user.sedes && user.sedes.find(s => s.id.toString() === formData.sedeId)) ||
-                     (user.sedeId && user.sedeId.toString() === formData.sedeId)) && (
-                      <span className="ml-2 text-xs bg-green-100 text-green-600 px-2 py-1 rounded-full">
-                        <i className="fas fa-user mr-1"></i>Tu sede
-                      </span>
-                    )
-                  )}
                 </label>
                 <select
                   value={formData.sedeId}
@@ -865,10 +873,6 @@ export default function VentaForm({ onSave, onCancel, preselectedVehiculoId, pre
                   {sedes.map((sede) => (
                     <option key={sede.id} value={sede.id}>
                       {sede.nombre}
-                      {user && (
-                        ((user.sedes && user.sedes.find(s => s.id === sede.id)) ||
-                         (user.sedeId === sede.id)) ? ' (Tu sede)' : ''
-                      )}
                     </option>
                   ))}
                 </select>

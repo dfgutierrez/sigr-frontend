@@ -105,12 +105,14 @@ export default function Vehiculos() {
   };
 
   const handleFormSave = (vehiculoCreado = null) => {
+    const isCreatingNewVehicle = vehiculoCreado && !editingVehiculo;
+    
     setShowForm(false);
     setEditingVehiculo(null);
     fetchVehiculos();
     
-    // Si es un vehículo nuevo (no edición), redirigir a nueva venta
-    if (vehiculoCreado && !editingVehiculo) {
+    // Si es un vehículo nuevo (no edición), redirigir a nueva venta para TODOS los roles
+    if (isCreatingNewVehicle) {
       console.log('🚗 Vehículo creado, redirigiendo a nueva venta:', vehiculoCreado);
       // Redirigir a nueva venta con parámetros del vehículo
       history.push(`/ventas/nueva?vehiculoId=${vehiculoCreado.id}&placa=${encodeURIComponent(vehiculoCreado.placa)}`);

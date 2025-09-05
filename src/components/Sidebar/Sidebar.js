@@ -112,7 +112,7 @@ export default function Sidebar() {
                   SIGR
                 </h1>
                 <p className="text-blueGray-500 text-xs">
-                  Sistema de Gestión
+                  Sistema de Inventario Grupo Robayo
                 </p>
               </div>
             </div>
@@ -141,7 +141,7 @@ export default function Sidebar() {
                     className="md:block text-left md:pb-2 text-blueGray-600 mr-0 inline-block whitespace-nowrap text-sm uppercase font-bold p-4 px-0"
                     to="/"
                   >
-                    Sistema de Gestión
+                    Sistema de Inventario Grupo Robayo
                   </Link>
                 </div>
                 <div className="w-6/12 flex justify-end">

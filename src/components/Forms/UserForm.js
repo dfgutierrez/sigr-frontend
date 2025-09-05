@@ -32,7 +32,8 @@ const UserForm = ({
     handleBlur,
     validateForm,
     resetForm,
-    setFormValues
+    setFormValues,
+    setFormErrors
   } = useForm({
     nombreCompleto: '',
     username: '',
@@ -43,6 +44,7 @@ const UserForm = ({
     roleIds: []
   }, userValidationRules);
 
+
   // Set form values when editing user changes
   useEffect(() => {
     if (editingUser) {
@@ -50,10 +52,10 @@ const UserForm = ({
       
       setFormValues({
         nombreCompleto: editingUser.nombreCompleto || editingUser.nombre_completo || editingUser.nombre || '',
-        username: editingUser.username,
+        username: editingUser.username || '',
         password: '',
         fotoUrl: editingUser.fotoUrl || editingUser.foto_url || '',
-        sedeId: editingUser.sedeId || editingUser.sede_id || '',
+        sedeId: (editingUser.sedeId || editingUser.sede_id || '').toString(),
         estado: editingUser.estado !== false,
         roleIds: userRoleIds
       });
@@ -64,7 +66,7 @@ const UserForm = ({
     // Clear image selection when user changes
     setSelectedImage(null);
     setImagePreview(null);
-  }, [editingUser, setFormValues, resetForm]);
+  }, [editingUser]);
 
   const handleImageSelect = (e) => {
     const file = e.target.files[0];
@@ -101,15 +103,13 @@ const UserForm = ({
     const roleId = parseInt(e.target.value);
     const isChecked = e.target.checked;
     
+    const currentRoleIds = values.roleIds || [];
     const newRoleIds = isChecked
-      ? [...values.roleIds, roleId]
-      : values.roleIds.filter(id => id !== roleId);
+      ? [...currentRoleIds, roleId]
+      : currentRoleIds.filter(id => id !== roleId);
     
-    handleChange({
-      target: {
-        name: 'roleIds',
-        value: newRoleIds
-      }
+    setFormValues({
+      roleIds: newRoleIds
     });
   };
 
@@ -118,11 +118,17 @@ const UserForm = ({
     
     // Additional password validation for new users
     if (!editingUser && (!values.password || values.password.length < 6)) {
+      setFormErrors({ 
+        password: 'La contraseña debe tener al menos 6 caracteres'
+      });
       return;
     }
     
     // Additional password validation for editing users
     if (editingUser && values.password && values.password.length > 0 && values.password.length < 6) {
+      setFormErrors({ 
+        password: 'La contraseña debe tener al menos 6 caracteres'
+      });
       return;
     }
     
@@ -158,6 +164,7 @@ const UserForm = ({
             error={errors.nombreCompleto}
             required
             placeholder="Nombre completo"
+            disabled={loading}
           />
           
           <Input
@@ -169,6 +176,7 @@ const UserForm = ({
             error={errors.username}
             required
             placeholder="Nombre de usuario"
+            disabled={loading}
           />
         </div>
         
@@ -182,6 +190,7 @@ const UserForm = ({
           error={errors.password}
           required={!editingUser}
           placeholder={editingUser ? "Nueva contraseña (mínimo 6 caracteres)" : "Contraseña (mínimo 6 caracteres)"}
+          disabled={loading}
         />
         
         {/* Image Upload Section */}
@@ -197,7 +206,7 @@ const UserForm = ({
                 alt="Preview"
                 className="w-16 h-16 rounded-full object-cover border-2 border-gray-200"
                 onError={(e) => {
-                  e.target.src = 'https://via.placeholder.com/64x64/e2e8f0/64748b?text=User';
+                  e.target.style.display = 'none';
                 }}
               />
               <Button
@@ -222,7 +231,7 @@ const UserForm = ({
             />
             <label
               htmlFor="imageInput"
-              className="cursor-pointer bg-blue-500 text-white px-4 py-2 rounded text-sm hover:bg-blue-600 transition-colors inline-flex items-center shadow-md min-w-[140px] justify-center"
+              className="cursor-pointer bg-lightBlue-500 text-white active:bg-lightBlue-600 text-xs font-bold uppercase px-3 py-3 rounded outline-none focus:outline-none ease-linear transition-all duration-150 inline-flex items-center min-w-[140px] justify-center hover:shadow-md"
             >
               <i className="fas fa-camera mr-2"></i>
               {selectedImage ? 'Cambiar imagen' : 'Subir imagen'}
@@ -250,6 +259,7 @@ const UserForm = ({
           onBlur={handleBlur}
           options={sedeOptions}
           placeholder="Seleccionar sede"
+          disabled={loading}
         />
         
         <div>
@@ -262,7 +272,7 @@ const UserForm = ({
                 <input
                   type="checkbox"
                   className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                  checked={values.roleIds.includes(role.id)}
+                  checked={(values.roleIds || []).includes(role.id)}
                   value={role.id}
                   onChange={handleRoleChange}
                 />

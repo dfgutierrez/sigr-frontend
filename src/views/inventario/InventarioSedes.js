@@ -3,17 +3,75 @@ import { inventarioService } from "api/inventarioService";
 import { sedeService } from "api/sedeService";
 import InventarioTable from "components/Cards/InventarioTable";
 import { useToast } from "hooks/useToastSimple";
+import { useAuth } from "contexts/AuthContext";
+import * as XLSX from 'xlsx';
 
 export default function InventarioSedes() {
+  const { user } = useAuth();
   const [inventario, setInventario] = useState([]);
   const [sedes, setSedes] = useState([]);
   const [selectedSedeId, setSelectedSedeId] = useState("");
   const [loading, setLoading] = useState(true);
+  const [downloadingExcel, setDownloadingExcel] = useState(false);
+  const [downloadingCSV, setDownloadingCSV] = useState(false);
   const { showToast } = useToast();
 
+  // Función para obtener el sedeId del usuario logueado
+  const getUserSedeId = () => {
+    if (!user) return null;
+    
+    // Estructura específica de la respuesta de login: user.sedes[0].id
+    if (user.sedes && Array.isArray(user.sedes) && user.sedes.length > 0) {
+      return user.sedes[0].id.toString();
+    }
+    
+    // Otras posibles ubicaciones del sedeId
+    return user?.sedeId?.toString() || user?.sede?.id?.toString() || null;
+  };
+
   useEffect(() => {
-    fetchData();
-  }, []);
+    const initialize = async () => {
+      try {
+        setLoading(true);
+        
+        // Primero cargar las sedes
+        try {
+          const sedesData = await sedeService.getAll();
+          console.log('🏢 Sedes data received:', sedesData);
+          
+          // Validar que sedesData sea un array
+          const validSedesData = Array.isArray(sedesData) ? sedesData : [];
+          setSedes(validSedesData);
+          console.log('✅ Sedes set:', validSedesData.length, 'items');
+        } catch (sedesError) {
+          console.error('❌ Error loading sedes:', sedesError);
+          setSedes([]); // Asegurar que siempre sea un array
+          showToast('Error al cargar sedes', 'warning');
+        }
+        
+        // Obtener la sede del usuario logueado
+        const userSedeId = getUserSedeId();
+        
+        if (userSedeId) {
+          console.log('🏢 Preseleccionando sede del usuario:', userSedeId);
+          setSelectedSedeId(userSedeId);
+          // Cargar inventario de la sede del usuario
+          await fetchData(userSedeId);
+        } else {
+          console.log('⚠️ No se encontró sede del usuario, cargando todos los inventarios');
+          // Si no se encuentra sede del usuario, cargar todos
+          await fetchData();
+        }
+      } catch (error) {
+        console.error('Error initializing InventarioSedes:', error);
+        showToast('Error al inicializar la página', 'error');
+      }
+    };
+
+    if (user) {
+      initialize();
+    }
+  }, [user]);
 
   const fetchData = async (sedeId = null) => {
     try {
@@ -185,6 +243,148 @@ export default function InventarioSedes() {
     }).format(amount);
   };
 
+  // Función para descargar inventario en Excel (.xlsx)
+  const downloadInventarioExcel = async () => {
+    try {
+      setDownloadingExcel(true);
+      
+      // Pequeña pausa para mostrar el estado de carga
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      const inventarioArray = Array.isArray(inventario) ? inventario : [];
+      
+      if (inventarioArray.length === 0) {
+        showToast('No hay datos para descargar', 'warning');
+        setDownloadingExcel(false);
+        return;
+      }
+
+      // Preparar los datos para Excel
+      const excelData = inventarioArray.map(item => {
+        const producto = item.producto || {};
+        const sede = sedes.find(s => s.id === item.sedeId) || {};
+        const precio = item.precio_venta || item.precioVenta || producto.precioVenta || producto.precio_venta || 0;
+        
+        return {
+          'Sede': sede.nombre || 'Sin sede',
+          'Código': producto.codigoBarra || 'Sin código',
+          'Producto': producto.nombre || 'Sin nombre',
+          'Categoría': producto.categoria?.nombre || 'Sin categoría',
+          'Marca': producto.marca?.nombre || 'Sin marca',
+          'Cantidad': item.cantidad || 0,
+          'Precio Unitario': precio,
+          'Valor Total': (item.cantidad || 0) * precio,
+          'Estado': (item.cantidad || 0) === 0 ? 'Agotado' : (item.cantidad || 0) <= 10 ? 'Stock Bajo' : 'Disponible'
+        };
+      });
+
+      // Crear workbook y worksheet
+      const ws = XLSX.utils.json_to_sheet(excelData);
+      const wb = XLSX.utils.book_new();
+      
+      // Nombre del archivo con fecha y sede
+      const fechaActual = new Date().toISOString().split('T')[0];
+      const sedeNombre = selectedSedeId 
+        ? `_${sedes.find(s => s.id.toString() === selectedSedeId)?.nombre || 'sede'}`
+        : '_todas_sedes';
+      const fileName = `inventario${sedeNombre}_${fechaActual}.xlsx`;
+      
+      // Agregar worksheet al workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Inventario');
+      
+      // Descargar archivo
+      XLSX.writeFile(wb, fileName);
+      
+      showToast(`Archivo ${fileName} descargado exitosamente`, 'success');
+      
+    } catch (error) {
+      console.error('Error downloading Excel inventory:', error);
+      showToast('Error al descargar el inventario Excel', 'error');
+    } finally {
+      setDownloadingExcel(false);
+    }
+  };
+
+  // Función para descargar inventario en CSV
+  const downloadInventarioCSV = async () => {
+    try {
+      setDownloadingCSV(true);
+      
+      // Pequeña pausa para mostrar el estado de carga
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      const inventarioArray = Array.isArray(inventario) ? inventario : [];
+      
+      if (inventarioArray.length === 0) {
+        showToast('No hay datos para descargar', 'warning');
+        setDownloadingCSV(false);
+        return;
+      }
+
+      // Preparar los datos para el CSV
+      const csvData = inventarioArray.map(item => {
+        const producto = item.producto || {};
+        const sede = sedes.find(s => s.id === item.sedeId) || {};
+        const precio = item.precio_venta || item.precioVenta || producto.precioVenta || producto.precio_venta || 0;
+        
+        return {
+          'Sede': sede.nombre || 'Sin sede',
+          'Código': producto.codigoBarra || 'Sin código',
+          'Producto': producto.nombre || 'Sin nombre',
+          'Categoría': producto.categoria?.nombre || 'Sin categoría',
+          'Marca': producto.marca?.nombre || 'Sin marca',
+          'Cantidad': item.cantidad || 0,
+          'Precio Unitario': precio,
+          'Valor Total': (item.cantidad || 0) * precio,
+          'Estado': (item.cantidad || 0) === 0 ? 'Agotado' : (item.cantidad || 0) <= 10 ? 'Stock Bajo' : 'Disponible'
+        };
+      });
+
+      // Convertir a CSV
+      const headers = Object.keys(csvData[0]);
+      const csvContent = [
+        headers.join(','), // Header row
+        ...csvData.map(row => 
+          headers.map(header => {
+            const value = row[header];
+            // Escapar valores que contengan comas o comillas
+            if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+              return `"${value.replace(/"/g, '""')}"`;
+            }
+            return value;
+          }).join(',')
+        )
+      ].join('\n');
+
+      // Crear y descargar archivo
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      
+      // Nombre del archivo con fecha y sede
+      const fechaActual = new Date().toISOString().split('T')[0];
+      const sedeNombre = selectedSedeId 
+        ? `_${sedes.find(s => s.id.toString() === selectedSedeId)?.nombre || 'sede'}`
+        : '_todas_sedes';
+      const fileName = `inventario${sedeNombre}_${fechaActual}.csv`;
+      
+      link.setAttribute('download', fileName);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      showToast(`Archivo ${fileName} descargado exitosamente`, 'success');
+      
+    } catch (error) {
+      console.error('Error downloading CSV inventory:', error);
+      showToast('Error al descargar el inventario CSV', 'error');
+    } finally {
+      setDownloadingCSV(false);
+    }
+  };
+
   return (
     <>
       <div className="flex flex-wrap mt-4">
@@ -317,7 +517,59 @@ export default function InventarioSedes() {
                 </div>
                 <div className="relative w-full px-4 max-w-full flex-grow flex-1 text-right">
                   <button
-                    className="bg-lightBlue-500 text-white active:bg-lightBlue-600 text-xs font-bold uppercase px-3 py-1 rounded outline-none focus:outline-none mr-1 mb-1 ease-linear transition-all duration-150"
+                    className={`font-bold uppercase text-xs px-4 py-2 rounded shadow hover:shadow-md outline-none focus:outline-none mr-2 mb-1 ease-linear transition-all duration-150 min-w-[140px] ${
+                      downloadingExcel 
+                        ? 'bg-green-400 text-white cursor-not-allowed opacity-75' 
+                        : loading || (!Array.isArray(inventario) || inventario.length === 0)
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-green-500 text-white hover:bg-green-600 active:bg-green-700'
+                    }`}
+                    style={{
+                      backgroundColor: downloadingExcel 
+                        ? '#10b981' 
+                        : loading || (!Array.isArray(inventario) || inventario.length === 0)
+                        ? '#d1d5db'
+                        : '#059669',
+                      color: downloadingExcel || (!loading && Array.isArray(inventario) && inventario.length > 0)
+                        ? '#ffffff'
+                        : '#6b7280'
+                    }}
+                    type="button"
+                    onClick={downloadInventarioExcel}
+                    disabled={loading || downloadingExcel || (!Array.isArray(inventario) || inventario.length === 0)}
+                    title="Descargar inventario en Excel (.xlsx)"
+                  >
+                    <i className={`${downloadingExcel ? 'fas fa-spinner fa-spin' : 'fas fa-file-excel'} mr-2`}></i>
+                    {downloadingExcel ? 'Descargando...' : 'Descargar Excel'}
+                  </button>
+                  <button
+                    className={`font-bold uppercase text-xs px-4 py-2 rounded shadow hover:shadow-md outline-none focus:outline-none mr-2 mb-1 ease-linear transition-all duration-150 min-w-[140px] ${
+                      downloadingCSV 
+                        ? 'bg-blue-400 text-white cursor-not-allowed opacity-75' 
+                        : loading || (!Array.isArray(inventario) || inventario.length === 0)
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-blue-500 text-white hover:bg-blue-600 active:bg-blue-700'
+                    }`}
+                    style={{
+                      backgroundColor: downloadingCSV 
+                        ? '#60a5fa' 
+                        : loading || (!Array.isArray(inventario) || inventario.length === 0)
+                        ? '#d1d5db'
+                        : '#3b82f6',
+                      color: downloadingCSV || (!loading && Array.isArray(inventario) && inventario.length > 0)
+                        ? '#ffffff'
+                        : '#6b7280'
+                    }}
+                    type="button"
+                    onClick={downloadInventarioCSV}
+                    disabled={loading || downloadingCSV || (!Array.isArray(inventario) || inventario.length === 0)}
+                    title="Descargar inventario en CSV"
+                  >
+                    <i className={`${downloadingCSV ? 'fas fa-spinner fa-spin' : 'fas fa-file-csv'} mr-2`}></i>
+                    {downloadingCSV ? 'Descargando...' : 'Descargar CSV'}
+                  </button>
+                  <button
+                    className="bg-lightBlue-500 text-white active:bg-lightBlue-600 text-xs font-bold uppercase px-4 py-2 rounded outline-none focus:outline-none mr-1 mb-1 ease-linear transition-all duration-150 min-w-[140px]"
                     type="button"
                     onClick={() => fetchData(selectedSedeId)}
                   >
@@ -344,17 +596,12 @@ export default function InventarioSedes() {
                       className="border-0 px-3 py-2 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring"
                     >
                       <option value="">Todas las sedes</option>
-                      {sedes.map(sede => (
+                      {Array.isArray(sedes) && sedes.map(sede => (
                         <option key={sede.id} value={sede.id}>
                           {sede.nombre}
                         </option>
                       ))}
                     </select>
-                    {selectedSedeId && (
-                      <span className="text-sm text-blueGray-500">
-                        Mostrando inventario de: <strong>{sedes.find(s => s.id.toString() === selectedSedeId)?.nombre}</strong>
-                      </span>
-                    )}
                   </div>
                 </div>
               </div>

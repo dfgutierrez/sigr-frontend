@@ -19,7 +19,8 @@ export default function ProductoTable({
   const filteredProductos = productosArray.filter(producto => 
     producto.nombre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (producto.codigoBarra || producto.codigo_barra)?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (producto.categoria?.nombre || producto.categoria_nombre)?.toLowerCase().includes(searchTerm.toLowerCase())
+    (producto.categoria?.nombre || producto.categoria_nombre)?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (producto.marca?.nombre || producto.marca_nombre)?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   // Ordenar productos
@@ -143,6 +144,20 @@ export default function ProductoTable({
                       ? "bg-blueGray-50 text-blueGray-500 border-blueGray-100"
                       : "bg-lightBlue-800 text-lightBlue-300 border-lightBlue-700")
                   }
+                  onClick={() => handleSort("marca_nombre")}
+                >
+                  <div className="flex items-center justify-between">
+                    Marca
+                    <i className={getSortIcon("marca_nombre")}></i>
+                  </div>
+                </th>
+                <th
+                  className={
+                    "px-6 align-middle border border-solid py-3 text-xs uppercase border-l-0 border-r-0 whitespace-nowrap font-semibold text-left cursor-pointer hover:bg-blueGray-50 " +
+                    (color === "light"
+                      ? "bg-blueGray-50 text-blueGray-500 border-blueGray-100"
+                      : "bg-lightBlue-800 text-lightBlue-300 border-lightBlue-700")
+                  }
                   onClick={() => handleSort("precio_compra")}
                 >
                   <div className="flex items-center justify-between">
@@ -179,7 +194,7 @@ export default function ProductoTable({
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="6" className="text-center py-8">
+                  <td colSpan="7" className="text-center py-8">
                     <div className="flex justify-center items-center">
                       <i className="fas fa-spinner fa-spin mr-2"></i>
                       Cargando productos...
@@ -188,7 +203,7 @@ export default function ProductoTable({
                 </tr>
               ) : sortedProductos.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="text-center py-8 text-blueGray-500">
+                  <td colSpan="7" className="text-center py-8 text-blueGray-500">
                     {searchTerm ? 'No se encontraron productos que coincidan con la búsqueda' : 'No hay productos registrados'}
                   </td>
                 </tr>
@@ -218,6 +233,16 @@ export default function ProductoTable({
                       <span className="bg-lightBlue-100 text-lightBlue-600 px-2 py-1 rounded-full text-xs font-bold">
                         {producto.categoria?.nombre || producto.categoria_nombre || 'Sin categoría'}
                       </span>
+                    </td>
+                    <td className="border-t-0 px-6 align-middle border-l-0 border-r-0 text-xs whitespace-nowrap p-4">
+                      <div className="flex items-center">
+                        <span className="bg-orange-100 text-orange-600 w-6 h-6 rounded-full flex items-center justify-center mr-2">
+                          <i className="fas fa-bookmark text-xs"></i>
+                        </span>
+                        <span className="text-blueGray-600 text-xs font-medium">
+                          {producto.marca?.nombre || producto.marca_nombre || 'Sin marca'}
+                        </span>
+                      </div>
                     </td>
                     <td className="border-t-0 px-6 align-middle border-l-0 border-r-0 text-xs whitespace-nowrap p-4">
                       <span className="font-bold text-green-600">

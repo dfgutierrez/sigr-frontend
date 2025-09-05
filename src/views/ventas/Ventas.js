@@ -5,6 +5,7 @@ import VentaForm from "components/Forms/VentaForm.js";
 import ConfirmationModal from "components/Modals/ConfirmationModal.js";
 import { useToast } from "hooks/useToast.js";
 import { useAuth } from "contexts/AuthContext.js";
+import * as XLSX from 'xlsx';
 
 export default function Ventas() {
   const [ventas, setVentas] = useState([]);
@@ -16,6 +17,8 @@ export default function Ventas() {
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [ventaToDeliver, setVentaToDeliver] = useState(null);
   const [expandedVenta, setExpandedVenta] = useState(null);
+  const [downloadingExcel, setDownloadingExcel] = useState(false);
+  const [downloadingCSV, setDownloadingCSV] = useState(false);
   // Función para obtener el primer día del mes actual
   const getPrimerDiaDelMes = () => {
     const now = new Date();
@@ -415,6 +418,134 @@ export default function Ventas() {
     });
   };
 
+  // Función para descargar historial de ventas en Excel (.xlsx)
+  const downloadVentasExcel = async () => {
+    try {
+      setDownloadingExcel(true);
+      
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      if (!Array.isArray(ventas) || ventas.length === 0) {
+        showToast('No hay ventas para descargar', 'warning');
+        setDownloadingExcel(false);
+        return;
+      }
+
+      // Preparar los datos para Excel
+      const excelData = ventas.map(venta => {
+        const detalleProductos = venta.detalles?.map(d => d.productoNombre || d.producto?.nombre).join(', ') || 'N/A';
+        
+        return {
+          'ID': venta.id,
+          'Fecha': formatDate(venta.fecha),
+          'Usuario': venta.usuarioNombre || venta.usuario?.nombreCompleto || 'N/A',
+          'Sede': venta.sedeNombre || venta.sede?.nombre || 'N/A',
+          'Total': venta.total,
+          'Estado': getEstadoText(venta.estado),
+          'Estado Entrega': getEstadoEntregaText(venta.fechaEntrega),
+          'Fecha Entrega': venta.fechaEntrega ? formatDateDelivery(venta.fechaEntrega) : 'N/A',
+          'Productos': detalleProductos
+        };
+      });
+
+      // Crear workbook y worksheet
+      const ws = XLSX.utils.json_to_sheet(excelData);
+      const wb = XLSX.utils.book_new();
+      
+      // Nombre del archivo con fecha
+      const fechaActual = new Date().toISOString().split('T')[0];
+      const sedeNombre = sedes.find(s => s.id === getUserSedeId(user))?.nombre || 'sede';
+      const fileName = `historial_ventas_${sedeNombre}_${fechaActual}.xlsx`;
+      
+      // Agregar worksheet al workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Historial Ventas');
+      
+      // Descargar archivo
+      XLSX.writeFile(wb, fileName);
+      
+      showToast(`Archivo ${fileName} descargado exitosamente`, 'success');
+      
+    } catch (error) {
+      console.error('Error downloading Excel ventas:', error);
+      showToast('Error al descargar el historial Excel', 'error');
+    } finally {
+      setDownloadingExcel(false);
+    }
+  };
+
+  // Función para descargar historial de ventas en CSV
+  const downloadVentasCSV = async () => {
+    try {
+      setDownloadingCSV(true);
+      
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      if (!Array.isArray(ventas) || ventas.length === 0) {
+        showToast('No hay ventas para descargar', 'warning');
+        setDownloadingCSV(false);
+        return;
+      }
+
+      // Preparar los datos para CSV
+      const csvData = ventas.map(venta => {
+        const detalleProductos = venta.detalles?.map(d => d.productoNombre || d.producto?.nombre).join(', ') || 'N/A';
+        
+        return {
+          'ID': venta.id,
+          'Fecha': formatDate(venta.fecha),
+          'Usuario': venta.usuarioNombre || venta.usuario?.nombreCompleto || 'N/A',
+          'Sede': venta.sedeNombre || venta.sede?.nombre || 'N/A',
+          'Total': venta.total,
+          'Estado': getEstadoText(venta.estado),
+          'Estado Entrega': getEstadoEntregaText(venta.fechaEntrega),
+          'Fecha Entrega': venta.fechaEntrega ? formatDateDelivery(venta.fechaEntrega) : 'N/A',
+          'Productos': detalleProductos
+        };
+      });
+
+      // Convertir a CSV
+      const headers = Object.keys(csvData[0]);
+      const csvContent = [
+        headers.join(','), // Header row
+        ...csvData.map(row => 
+          headers.map(header => {
+            const value = row[header];
+            // Escapar valores que contengan comas o comillas
+            if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+              return `"${value.replace(/"/g, '""')}"`;
+            }
+            return value;
+          }).join(',')
+        )
+      ].join('\n');
+
+      // Crear y descargar archivo
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      
+      // Nombre del archivo con fecha
+      const fechaActual = new Date().toISOString().split('T')[0];
+      const sedeNombre = sedes.find(s => s.id === getUserSedeId(user))?.nombre || 'sede';
+      const fileName = `historial_ventas_${sedeNombre}_${fechaActual}.csv`;
+      
+      link.setAttribute('download', fileName);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      showToast(`Archivo ${fileName} descargado exitosamente`, 'success');
+      
+    } catch (error) {
+      console.error('Error downloading CSV ventas:', error);
+      showToast('Error al descargar el historial CSV', 'error');
+    } finally {
+      setDownloadingCSV(false);
+    }
+  };
+
   if (showForm) {
     return (
       <div className="flex flex-wrap">
@@ -439,25 +570,74 @@ export default function Ventas() {
                   <h3 className="font-semibold text-base text-blueGray-700">
                     Historial de Ventas
                   </h3>
-                  <div className="text-xs text-blueGray-500 mt-1">
-                    <i className="fas fa-calendar mr-1"></i>
-                    Mostrando: {new Date().toLocaleDateString("es-ES", { month: "long", year: "numeric" })}
-                    {" - Sede del usuario logueado"}
-                  </div>
                 </div>
                 <div className="relative w-full px-4 max-w-full flex-grow flex-1 text-right">
                   <button
-                    onClick={fetchVentas}
-                    className="bg-yellow-500 text-white active:bg-yellow-600 text-xs font-bold uppercase px-3 py-1 rounded outline-none focus:outline-none mr-1 mb-1 ease-linear transition-all duration-150"
+                    className={`font-bold uppercase text-xs px-4 py-2 rounded shadow hover:shadow-md outline-none focus:outline-none mr-2 mb-1 ease-linear transition-all duration-150 min-w-[140px] ${
+                      downloadingExcel 
+                        ? 'bg-green-400 text-white cursor-not-allowed opacity-75' 
+                        : (!Array.isArray(ventas) || ventas.length === 0)
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-green-500 text-white hover:bg-green-600 active:bg-green-700'
+                    }`}
+                    style={{
+                      backgroundColor: downloadingExcel 
+                        ? '#10b981' 
+                        : (!Array.isArray(ventas) || ventas.length === 0)
+                        ? '#d1d5db'
+                        : '#059669',
+                      color: downloadingExcel || (Array.isArray(ventas) && ventas.length > 0)
+                        ? '#ffffff'
+                        : '#6b7280'
+                    }}
                     type="button"
+                    onClick={downloadVentasExcel}
+                    disabled={downloadingExcel || (!Array.isArray(ventas) || ventas.length === 0)}
+                    title="Descargar historial en Excel (.xlsx)"
                   >
-                    🔄 Refrescar
+                    <i className={`${downloadingExcel ? 'fas fa-spinner fa-spin' : 'fas fa-file-excel'} mr-2`}></i>
+                    {downloadingExcel ? 'Descargando...' : 'Descargar Excel'}
                   </button>
                   <button
-                    className="bg-indigo-500 text-white active:bg-indigo-600 text-xs font-bold uppercase px-3 py-1 rounded outline-none focus:outline-none mr-1 mb-1 ease-linear transition-all duration-150"
+                    className={`font-bold uppercase text-xs px-4 py-2 rounded shadow hover:shadow-md outline-none focus:outline-none mr-2 mb-1 ease-linear transition-all duration-150 min-w-[140px] ${
+                      downloadingCSV 
+                        ? 'bg-blue-400 text-white cursor-not-allowed opacity-75' 
+                        : (!Array.isArray(ventas) || ventas.length === 0)
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-blue-500 text-white hover:bg-blue-600 active:bg-blue-700'
+                    }`}
+                    style={{
+                      backgroundColor: downloadingCSV 
+                        ? '#60a5fa' 
+                        : (!Array.isArray(ventas) || ventas.length === 0)
+                        ? '#d1d5db'
+                        : '#3b82f6',
+                      color: downloadingCSV || (Array.isArray(ventas) && ventas.length > 0)
+                        ? '#ffffff'
+                        : '#6b7280'
+                    }}
+                    type="button"
+                    onClick={downloadVentasCSV}
+                    disabled={downloadingCSV || (!Array.isArray(ventas) || ventas.length === 0)}
+                    title="Descargar historial en CSV"
+                  >
+                    <i className={`${downloadingCSV ? 'fas fa-spinner fa-spin' : 'fas fa-file-csv'} mr-2`}></i>
+                    {downloadingCSV ? 'Descargando...' : 'Descargar CSV'}
+                  </button>
+                  <button
+                    onClick={fetchVentas}
+                    className="bg-yellow-500 text-white active:bg-yellow-600 font-bold uppercase text-xs px-4 py-2 rounded shadow hover:shadow-md outline-none focus:outline-none mr-2 mb-1 ease-linear transition-all duration-150 min-w-[140px]"
+                    type="button"
+                  >
+                    <i className="fas fa-sync-alt mr-2"></i>
+                    Refrescar
+                  </button>
+                  <button
+                    className="bg-indigo-500 text-white active:bg-indigo-600 font-bold uppercase text-xs px-4 py-2 rounded shadow hover:shadow-md outline-none focus:outline-none mr-1 mb-1 ease-linear transition-all duration-150 min-w-[140px]"
                     type="button"
                     onClick={handleCreate}
                   >
+                    <i className="fas fa-plus mr-2"></i>
                     Nueva Venta
                   </button>
                 </div>
@@ -641,7 +821,7 @@ export default function Ventas() {
                                       <tr key={index} className="border-b border-blueGray-100">
                                         <td className="px-4 py-2 text-xs">
                                           <div>
-                                            <div className="font-bold">{detalle.producto?.nombre || "Producto N/A"}</div>
+                                            <div className="font-bold">{detalle.productoNombre || detalle.producto?.nombre || "Producto N/A"}</div>
                                             <div className="text-blueGray-500">{detalle.producto?.codigoBarra || ""}</div>
                                           </div>
                                         </td>

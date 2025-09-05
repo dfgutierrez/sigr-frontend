@@ -188,6 +188,30 @@ export default function VehiculoForm({ vehiculo, onSave, onCancel, preSelectedSe
       newErrors.tipo = "El tipo es requerido";
     }
     
+    if (!formData.marcaId) {
+      newErrors.marcaId = "La marca es requerida";
+    }
+    
+    if (!formData.modelo.trim()) {
+      newErrors.modelo = "El modelo es requerido";
+    }
+    
+    if (!formData.nombreConductor.trim()) {
+      newErrors.nombreConductor = "El nombre del conductor es requerido";
+    }
+    
+    if (!formData.documento.trim()) {
+      newErrors.documento = "El documento es requerido";
+    }
+    
+    if (!formData.km || formData.km < 0) {
+      newErrors.km = "Los kilómetros son requeridos";
+    }
+    
+    if (!formData.sigla.trim()) {
+      newErrors.sigla = "La sigla es requerida";
+    }
+    
     if (!formData.sedeId) {
       newErrors.sedeId = "La sede es requerida";
     }
@@ -218,12 +242,15 @@ export default function VehiculoForm({ vehiculo, onSave, onCancel, preSelectedSe
       if (vehiculo) {
         await vehiculoService.updateVehiculo(vehiculo.id, dataToSend);
         showToast("Vehículo actualizado exitosamente", "success");
+        console.log('📝 Vehículo editado, no hay redirección');
       } else {
         const response = await vehiculoService.createVehiculo(dataToSend);
         vehiculoCreado = response.data || response;
+        console.log('🚗 Vehículo creado para redirección:', vehiculoCreado);
         showToast("Vehículo creado exitosamente", "success");
       }
       
+      console.log('🔄 Llamando onSave con:', vehiculoCreado);
       onSave(vehiculoCreado);
     } catch (error) {
       console.error("Error saving vehiculo:", error);
@@ -297,13 +324,15 @@ export default function VehiculoForm({ vehiculo, onSave, onCancel, preSelectedSe
             <div className="w-full lg:w-6/12 px-4">
               <div className="relative w-full mb-3">
                 <label className="block uppercase text-blueGray-600 text-xs font-bold mb-2">
-                  Marca
+                  Marca *
                 </label>
                 <select
                   name="marcaId"
                   value={formData.marcaId}
                   onChange={handleInputChange}
-                  className="border-0 px-3 py-3 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150"
+                  className={`border-0 px-3 py-3 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150 ${
+                    errors.marcaId ? 'border-red-500' : ''
+                  }`}
                 >
                   <option value="">Seleccionar marca</option>
                   {Array.isArray(marcas) && marcas.map((marca) => (
@@ -312,83 +341,111 @@ export default function VehiculoForm({ vehiculo, onSave, onCancel, preSelectedSe
                     </option>
                   ))}
                 </select>
+                {errors.marcaId && (
+                  <p className="text-red-500 text-xs mt-1">{errors.marcaId}</p>
+                )}
               </div>
             </div>
             <div className="w-full lg:w-6/12 px-4">
               <div className="relative w-full mb-3">
                 <label className="block uppercase text-blueGray-600 text-xs font-bold mb-2">
-                  Modelo
+                  Modelo *
                 </label>
                 <input
                   type="text"
                   name="modelo"
                   value={formData.modelo}
                   onChange={handleInputChange}
-                  className="border-0 px-3 py-3 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150"
+                  className={`border-0 px-3 py-3 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150 ${
+                    errors.modelo ? 'border-red-500' : ''
+                  }`}
                   placeholder="Corolla"
                 />
+                {errors.modelo && (
+                  <p className="text-red-500 text-xs mt-1">{errors.modelo}</p>
+                )}
               </div>
             </div>
             <div className="w-full lg:w-6/12 px-4">
               <div className="relative w-full mb-3">
                 <label className="block uppercase text-blueGray-600 text-xs font-bold mb-2">
-                  Nombre del Conductor
+                  Nombre del Conductor *
                 </label>
                 <input
                   type="text"
                   name="nombreConductor"
                   value={formData.nombreConductor}
                   onChange={handleInputChange}
-                  className="border-0 px-3 py-3 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150"
+                  className={`border-0 px-3 py-3 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150 ${
+                    errors.nombreConductor ? 'border-red-500' : ''
+                  }`}
                   placeholder="Juan Pérez"
                 />
+                {errors.nombreConductor && (
+                  <p className="text-red-500 text-xs mt-1">{errors.nombreConductor}</p>
+                )}
               </div>
             </div>
             <div className="w-full lg:w-6/12 px-4">
               <div className="relative w-full mb-3">
                 <label className="block uppercase text-blueGray-600 text-xs font-bold mb-2">
-                  Documento
+                  Documento *
                 </label>
                 <input
                   type="text"
                   name="documento"
                   value={formData.documento}
                   onChange={handleInputChange}
-                  className="border-0 px-3 py-3 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150"
+                  className={`border-0 px-3 py-3 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150 ${
+                    errors.documento ? 'border-red-500' : ''
+                  }`}
                   placeholder="12345678"
                 />
+                {errors.documento && (
+                  <p className="text-red-500 text-xs mt-1">{errors.documento}</p>
+                )}
               </div>
             </div>
             <div className="w-full lg:w-6/12 px-4">
               <div className="relative w-full mb-3">
                 <label className="block uppercase text-blueGray-600 text-xs font-bold mb-2">
-                  Kilómetros
+                  Kilómetros *
                 </label>
                 <input
                   type="number"
                   name="km"
                   value={formData.km}
                   onChange={handleInputChange}
-                  className="border-0 px-3 py-3 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150"
+                  className={`border-0 px-3 py-3 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150 ${
+                    errors.km ? 'border-red-500' : ''
+                  }`}
                   placeholder="50000"
                   min="0"
                 />
+                {errors.km && (
+                  <p className="text-red-500 text-xs mt-1">{errors.km}</p>
+                )}
               </div>
             </div>
             <div className="w-full lg:w-6/12 px-4">
               <div className="relative w-full mb-3">
                 <label className="block uppercase text-blueGray-600 text-xs font-bold mb-2">
-                  Sigla
+                  Sigla *
                 </label>
                 <input
                   type="text"
                   name="sigla"
                   value={formData.sigla}
                   onChange={handleInputChange}
-                  className="border-0 px-3 py-3 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150"
+                  className={`border-0 px-3 py-3 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150 ${
+                    errors.sigla ? 'border-red-500' : ''
+                  }`}
                   placeholder="ABC"
                   maxLength="10"
                 />
+                {errors.sigla && (
+                  <p className="text-red-500 text-xs mt-1">{errors.sigla}</p>
+                )}
               </div>
             </div>
             <div className="w-full lg:w-6/12 px-4">
