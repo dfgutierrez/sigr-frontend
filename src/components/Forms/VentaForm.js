@@ -831,6 +831,7 @@ export default function VentaForm({ onSave, onCancel, preselectedVehiculoId, pre
             onSave={handleVehiculoFormSave}
             onCancel={handleVehiculoFormCancel}
             preSelectedSedeId={formData.sedeId}
+            preSelectedPlaca={placaSearch}
           />
         </div>
       </div>

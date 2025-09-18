@@ -5,7 +5,7 @@ import { sedeService } from "api/sedeService.js";
 import { useAuth } from "contexts/AuthContext.js";
 import { useToast } from "hooks/useToast.js";
 
-export default function VehiculoForm({ vehiculo, onSave, onCancel, preSelectedSedeId }) {
+export default function VehiculoForm({ vehiculo, onSave, onCancel, preSelectedSedeId, preSelectedPlaca }) {
   const { user } = useAuth();
   
   // Verificar si el usuario es vendedor
@@ -65,13 +65,23 @@ export default function VehiculoForm({ vehiculo, onSave, onCancel, preSelectedSe
         sigla: vehiculo.sigla || "",
         sedeId: sedeId
       });
-    } else if (preSelectedSedeId) {
-      setFormData(prev => ({
-        ...prev,
-        sedeId: preSelectedSedeId
-      }));
+    } else {
+      // Nuevo vehículo
+      let initialFormData = {
+        placa: preSelectedPlaca || "",
+        tipo: "moto",
+        marcaId: "",
+        modelo: "",
+        nombreConductor: "",
+        documento: "",
+        km: 0,
+        sigla: "",
+        sedeId: preSelectedSedeId || ""
+      };
+      
+      setFormData(initialFormData);
     }
-  }, [vehiculo, preSelectedSedeId]);
+  }, [vehiculo, preSelectedSedeId, preSelectedPlaca]);
 
   const fetchMarcas = async () => {
     try {
