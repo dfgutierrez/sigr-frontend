@@ -20,6 +20,7 @@ export default function VehiculoForm({ vehiculo, onSave, onCancel, preSelectedSe
     modelo: "",
     nombreConductor: "",
     documento: "",
+    celular: "",
     km: 0,
     sigla: "",
     sedeId: ""
@@ -61,6 +62,7 @@ export default function VehiculoForm({ vehiculo, onSave, onCancel, preSelectedSe
         modelo: vehiculo.modelo || "",
         nombreConductor: vehiculo.nombreConductor || "",
         documento: vehiculo.documento || "",
+        celular: vehiculo.celular || "",
         km: vehiculo.km || 0,
         sigla: vehiculo.sigla || "",
         sedeId: sedeId
@@ -74,6 +76,7 @@ export default function VehiculoForm({ vehiculo, onSave, onCancel, preSelectedSe
         modelo: "",
         nombreConductor: "",
         documento: "",
+        celular: "",
         km: 0,
         sigla: "",
         sedeId: preSelectedSedeId || ""
@@ -156,8 +159,16 @@ export default function VehiculoForm({ vehiculo, onSave, onCancel, preSelectedSe
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     
+    let processedValue = value;
+    
     // Convertir placa a mayúsculas automáticamente
-    const processedValue = name === 'placa' ? value.toUpperCase() : value;
+    if (name === 'placa') {
+      processedValue = value.toUpperCase();
+    }
+    // Para celular, solo permitir números y máximo 10 dígitos
+    else if (name === 'celular') {
+      processedValue = value.replace(/\D/g, '').slice(0, 10);
+    }
     
     setFormData(prev => ({
       ...prev,
@@ -212,6 +223,12 @@ export default function VehiculoForm({ vehiculo, onSave, onCancel, preSelectedSe
     
     if (!formData.documento.trim()) {
       newErrors.documento = "El documento es requerido";
+    }
+    
+    if (!formData.celular.trim()) {
+      newErrors.celular = "El celular es requerido";
+    } else if (!/^\d{10}$/.test(formData.celular.trim())) {
+      newErrors.celular = "El celular debe tener exactamente 10 dígitos numéricos";
     }
     
     if (!formData.km || formData.km < 0) {
@@ -413,6 +430,28 @@ export default function VehiculoForm({ vehiculo, onSave, onCancel, preSelectedSe
                 />
                 {errors.documento && (
                   <p className="text-red-500 text-xs mt-1">{errors.documento}</p>
+                )}
+              </div>
+            </div>
+            <div className="w-full lg:w-6/12 px-4">
+              <div className="relative w-full mb-3">
+                <label className="block uppercase text-blueGray-600 text-xs font-bold mb-2">
+                  Celular *
+                </label>
+                <input
+                  type="number"
+                  name="celular"
+                  value={formData.celular}
+                  onChange={handleInputChange}
+                  className={`border-0 px-3 py-3 placeholder-blueGray-300 text-blueGray-600 bg-white rounded text-sm shadow focus:outline-none focus:ring w-full ease-linear transition-all duration-150 ${
+                    errors.celular ? 'border-red-500' : ''
+                  }`}
+                  placeholder="3001234567"
+                  min="1000000000"
+                  max="9999999999"
+                />
+                {errors.celular && (
+                  <p className="text-red-500 text-xs mt-1">{errors.celular}</p>
                 )}
               </div>
             </div>

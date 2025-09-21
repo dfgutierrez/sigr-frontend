@@ -6,6 +6,7 @@ import ConfirmationModal from "components/Modals/ConfirmationModal.js";
 import { useToast } from "hooks/useToast.js";
 import { useAuth } from "contexts/AuthContext.js";
 import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
 
 export default function Ventas() {
   const [ventas, setVentas] = useState([]);
@@ -19,6 +20,7 @@ export default function Ventas() {
   const [expandedVenta, setExpandedVenta] = useState(null);
   const [downloadingExcel, setDownloadingExcel] = useState(false);
   const [downloadingCSV, setDownloadingCSV] = useState(false);
+  const [downloadingPDF, setDownloadingPDF] = useState({});
   // Función para obtener el primer día del mes actual
   const getPrimerDiaDelMes = () => {
     const now = new Date();
@@ -546,6 +548,309 @@ export default function Ventas() {
     }
   };
 
+  // Función para generar y descargar PDF de la factura
+  const downloadFacturaPDF = async (venta) => {
+    try {
+      setDownloadingPDF(prev => ({ ...prev, [venta.id]: true }));
+      
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Obtener información completa de la venta desde el servidor
+      console.log('🔄 Obteniendo información completa de la venta:', venta.id);
+      const ventaCompleta = await ventaService.obtenerVentaPorId(venta.id);
+      console.log('✅ Información completa obtenida:', ventaCompleta);
+      
+      // Usar la información completa (ventaCompleta.data) en lugar de la venta del listado
+      const ventaData = ventaCompleta.data || ventaCompleta;
+      
+      // Crear nuevo documento PDF
+      const pdf = new jsPDF();
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      
+      // Configurar fuente y colores
+      pdf.setFont('helvetica');
+      
+      // Fondo del encabezado
+      pdf.setFillColor(240, 248, 255); // Azul muy claro
+      pdf.rect(15, 10, pageWidth - 30, 45, 'F');
+      
+      // Borde del encabezado
+      pdf.setDrawColor(70, 130, 180); // Azul acero
+      pdf.setLineWidth(1);
+      pdf.rect(15, 10, pageWidth - 30, 45);
+      
+      // Línea 1: Información de la empresa
+      pdf.setFontSize(14);
+      pdf.setTextColor(25, 25, 112); // Azul medianoche
+      pdf.text('LUIS FERNANDO ROBAYO DIAZ - NIT: 14.224.583-5', pageWidth / 2, 25, { align: 'center' });
+      
+      // Línea 2: ORDEN DE TRABAJO
+      pdf.setFontSize(18);
+      pdf.setTextColor(25, 25, 112); // Azul medianoche
+      pdf.text('ORDEN DE TRABAJO', pageWidth / 2, 37, { align: 'center' });
+      
+      // Línea 3: Número en rojo
+      pdf.setFontSize(16);
+      pdf.setTextColor(220, 20, 60); // Rojo carmesí
+      pdf.text(`No. ${ventaData.id}`, pageWidth / 2, 49, { align: 'center' });
+      
+      // Si la venta está anulada, agregar marca de ANULADA
+      if (!ventaData.estado) {
+        // Fondo rojo semi-transparente para "ANULADA"
+        pdf.setFillColor(255, 0, 0); // Rojo
+        pdf.rect(pageWidth / 2 - 40, 52, 80, 15, 'F');
+        
+        // Texto "ANULADA" en blanco
+        pdf.setFontSize(14);
+        pdf.setTextColor(255, 255, 255); // Blanco
+        pdf.text('ANULADA', pageWidth / 2, 62, { align: 'center' });
+      }
+      
+      // Información general en caja
+      let yPosition = !ventaData.estado ? 80 : 70; // Ajustar posición si está anulada
+      pdf.setFillColor(250, 250, 250); // Gris muy claro
+      pdf.rect(15, yPosition, pageWidth - 30, 30, 'F');
+      pdf.setDrawColor(180, 180, 180);
+      pdf.setLineWidth(0.5);
+      pdf.rect(15, yPosition, pageWidth - 30, 30);
+      
+      yPosition += 15;
+      pdf.setFontSize(11);
+      pdf.setTextColor(50, 50, 50);
+      
+      const sedeNombre = ventaData.sedeNombre || ventaData.sede?.nombre || 'Sede no encontrada';
+      pdf.text(`Sede: ${sedeNombre}`, 20, yPosition);
+      pdf.text(`Fecha: ${formatDate(ventaData.fecha)}`, 20, yPosition + 10);
+      pdf.text(`Usuario: ${ventaData.usuarioNombre || ventaData.usuario?.nombreCompleto || 'N/A'}`, pageWidth / 2 + 10, yPosition);
+      
+      // Información del vehículo (si existe)
+      if (ventaData.vehiculo) {
+        yPosition += 30;
+        
+        // Título de la sección con fondo
+        pdf.setFillColor(70, 130, 180); // Azul acero
+        pdf.rect(15, yPosition, pageWidth - 30, 12, 'F');
+        pdf.setFontSize(12);
+        pdf.setTextColor(255, 255, 255); // Blanco
+        pdf.text('INFORMACION DEL VEHICULO', 20, yPosition + 8);
+        
+        yPosition += 20;
+        const vehiculo = ventaData.vehiculo;
+        
+        // Crear tabla con bordes
+        const tableData = [
+          [`Placa:`, vehiculo.placa || 'N/A', `Conductor:`, vehiculo.nombreConductor || 'N/A'],
+          [`Tipo:`, vehiculo.tipo || 'N/A', `Cedula:`, vehiculo.documento || 'N/A'],
+          [`Kilometros:`, vehiculo.km ? vehiculo.km.toLocaleString() + ' km' : 'N/A', `Celular:`, vehiculo.celular || 'N/A'],
+          [`Sigla:`, vehiculo.sigla || 'N/A', `Fecha Salida:`, vehiculo.fechaSalida ? formatDate(vehiculo.fechaSalida) : 'N/A'],
+          [`Fecha Ingreso:`, vehiculo.fechaIngreso ? formatDate(vehiculo.fechaIngreso) : 'N/A', ``, ``]
+        ];
+        
+        const cellWidth = (pageWidth - 30) / 4;
+        const cellHeight = 12;
+        
+        for (let row = 0; row < tableData.length; row++) {
+          for (let col = 0; col < 4; col++) {
+            const x = 15 + (col * cellWidth);
+            const y = yPosition + (row * cellHeight);
+            
+            // Alternar colores de fondo
+            if (row % 2 === 0) {
+              pdf.setFillColor(248, 248, 248);
+            } else {
+              pdf.setFillColor(255, 255, 255);
+            }
+            pdf.rect(x, y, cellWidth, cellHeight, 'F');
+            
+            // Bordes
+            pdf.setDrawColor(200, 200, 200);
+            pdf.setLineWidth(0.3);
+            pdf.rect(x, y, cellWidth, cellHeight);
+            
+            // Texto
+            pdf.setFontSize(9);
+            if (col % 2 === 0) {
+              pdf.setTextColor(70, 70, 70); // Etiquetas más oscuras
+            } else {
+              pdf.setTextColor(0, 0, 0); // Valores en negro
+            }
+            
+            if (tableData[row][col]) {
+              pdf.text(tableData[row][col], x + 3, y + 8);
+            }
+          }
+        }
+        
+        yPosition += (tableData.length * cellHeight) + 10;
+      } else {
+        // Si no hay vehículo, agregar una nota
+        yPosition += 20;
+        pdf.setFontSize(12);
+        pdf.setTextColor(100, 100, 100);
+        pdf.text('No hay vehículo asociado a esta venta', 20, yPosition);
+        yPosition += 15;
+      }
+      
+      // Tabla de productos
+      yPosition += 10;
+      
+      // Título de la sección con fondo
+      pdf.setFillColor(70, 130, 180); // Azul acero
+      pdf.rect(15, yPosition, pageWidth - 30, 12, 'F');
+      pdf.setFontSize(12);
+      pdf.setTextColor(255, 255, 255); // Blanco
+      pdf.text('DETALLE DE PRODUCTOS', 20, yPosition + 8);
+      
+      yPosition += 20;
+      
+      // Encabezados de la tabla con fondo
+      pdf.setFillColor(240, 240, 240); // Gris claro
+      pdf.rect(15, yPosition, pageWidth - 30, 12, 'F');
+      pdf.setDrawColor(180, 180, 180);
+      pdf.setLineWidth(0.5);
+      pdf.rect(15, yPosition, pageWidth - 30, 12);
+      
+      pdf.setFontSize(10);
+      pdf.setTextColor(50, 50, 50);
+      pdf.text('PRODUCTO', 20, yPosition + 8);
+      pdf.text('CANT.', pageWidth - 120, yPosition + 8);
+      pdf.text('PRECIO UNIT.', pageWidth - 90, yPosition + 8);
+      pdf.text('SUBTOTAL', pageWidth - 40, yPosition + 8);
+      
+      yPosition += 12;
+      
+      // Productos
+      let total = 0;
+      if (ventaData.detalles && Array.isArray(ventaData.detalles)) {
+        ventaData.detalles.forEach((detalle, index) => {
+          // Verificar si necesitamos una nueva página
+          if (yPosition > pageHeight - 60) {
+            pdf.addPage();
+            yPosition = 30;
+            
+            // Repetir encabezado de tabla en nueva página
+            pdf.setFillColor(240, 240, 240);
+            pdf.rect(15, yPosition, pageWidth - 30, 12, 'F');
+            pdf.setDrawColor(180, 180, 180);
+            pdf.setLineWidth(0.5);
+            pdf.rect(15, yPosition, pageWidth - 30, 12);
+            
+            pdf.setFontSize(10);
+            pdf.setTextColor(50, 50, 50);
+            pdf.text('PRODUCTO', 20, yPosition + 8);
+            pdf.text('CANT.', pageWidth - 120, yPosition + 8);
+            pdf.text('PRECIO UNIT.', pageWidth - 90, yPosition + 8);
+            pdf.text('SUBTOTAL', pageWidth - 40, yPosition + 8);
+            
+            yPosition += 12;
+          }
+          
+          const productoNombre = detalle.productoNombre || detalle.producto?.nombre || 'Producto N/A';
+          const cantidad = detalle.cantidad || 0;
+          const precioUnitario = detalle.precioUnitario || 0;
+          const subtotal = detalle.subtotal || (cantidad * precioUnitario);
+          
+          // Alternar colores de fondo para las filas
+          if (index % 2 === 0) {
+            pdf.setFillColor(252, 252, 252); // Muy claro
+          } else {
+            pdf.setFillColor(248, 248, 248); // Ligeramente más oscuro
+          }
+          pdf.rect(15, yPosition, pageWidth - 30, 12, 'F');
+          
+          // Bordes laterales
+          pdf.setDrawColor(220, 220, 220);
+          pdf.setLineWidth(0.3);
+          pdf.rect(15, yPosition, pageWidth - 30, 12);
+          
+          // Truncar nombre del producto si es muy largo
+          const nombreTruncado = productoNombre.length > 30 
+            ? productoNombre.substring(0, 30) + '...' 
+            : productoNombre;
+          
+          pdf.setFontSize(9);
+          pdf.setTextColor(0, 0, 0);
+          pdf.text(nombreTruncado, 20, yPosition + 8);
+          pdf.text(cantidad.toString(), pageWidth - 115, yPosition + 8);
+          pdf.text(formatCurrency(precioUnitario), pageWidth - 85, yPosition + 8);
+          
+          // Subtotal en negrita simulada
+          pdf.setFontSize(10);
+          pdf.setTextColor(70, 130, 180); // Azul para destacar
+          pdf.text(formatCurrency(subtotal), pageWidth - 35, yPosition + 8);
+          
+          yPosition += 12;
+          total += subtotal;
+        });
+      }
+      
+      // Caja del total
+      yPosition += 15;
+      pdf.setFillColor(70, 130, 180); // Azul acero
+      pdf.rect(pageWidth - 120, yPosition, 105, 20, 'F');
+      pdf.setDrawColor(50, 90, 140);
+      pdf.setLineWidth(1);
+      pdf.rect(pageWidth - 120, yPosition, 105, 20);
+      
+      pdf.setFontSize(14);
+      pdf.setTextColor(255, 255, 255);
+      pdf.text('TOTAL:', pageWidth - 110, yPosition + 8);
+      pdf.setFontSize(16);
+      pdf.text(formatCurrency(total), pageWidth - 110, yPosition + 16);
+      
+      // Información adicional en caja
+      yPosition += 35;
+      pdf.setFillColor(250, 250, 250);
+      pdf.rect(15, yPosition, pageWidth - 30, 20, 'F');
+      pdf.setDrawColor(200, 200, 200);
+      pdf.setLineWidth(0.5);
+      pdf.rect(15, yPosition, pageWidth - 30, 20);
+      
+      pdf.setFontSize(10);
+      pdf.setTextColor(70, 70, 70);
+      
+      // Verificar si la venta está anulada
+      if (!ventaData.estado) {
+        pdf.setTextColor(255, 0, 0); // Rojo para anulada
+        pdf.text(`VENTA ANULADA`, 20, yPosition + 8);
+        pdf.text(`Esta orden de trabajo ha sido anulada`, 20, yPosition + 15);
+      } else if (ventaData.fechaEntrega) {
+        pdf.text(`Fecha de entrega: ${formatDateDelivery(ventaData.fechaEntrega)}`, 20, yPosition + 8);
+        pdf.text(`Estado: Entregada`, 20, yPosition + 15);
+      } else {
+        pdf.text(`Estado de entrega: Pendiente`, 20, yPosition + 8);
+        pdf.text(`Orden lista para procesar`, 20, yPosition + 15);
+      }
+      
+      // Pie de página elegante
+      yPosition = pageHeight - 25;
+      pdf.setFillColor(240, 240, 240);
+      pdf.rect(0, yPosition - 5, pageWidth, 30, 'F');
+      
+      pdf.setFontSize(8);
+      pdf.setTextColor(120, 120, 120);
+      pdf.text('Orden de trabajo generada automaticamente', pageWidth / 2, yPosition + 5, { align: 'center' });
+      pdf.text(`Generada el: ${new Date().toLocaleString('es-ES')}`, pageWidth / 2, yPosition + 12, { align: 'center' });
+      pdf.text('LUIS FERNANDO ROBAYO DIAZ - Sistema de Gestion', pageWidth / 2, yPosition + 19, { align: 'center' });
+      
+      // Nombre del archivo
+      const fechaActual = new Date().toISOString().split('T')[0];
+      const fileName = `orden_trabajo_${ventaData.id}_${fechaActual}.pdf`;
+      
+      // Descargar el PDF
+      pdf.save(fileName);
+      
+      showToast(`Orden de trabajo ${fileName} descargada exitosamente`, 'success');
+      
+    } catch (error) {
+      console.error('Error generating PDF factura:', error);
+      showToast('Error al generar la orden de trabajo PDF', 'error');
+    } finally {
+      setDownloadingPDF(prev => ({ ...prev, [venta.id]: false }));
+    }
+  };
+
   if (showForm) {
     return (
       <div className="flex flex-wrap">
@@ -786,6 +1091,19 @@ export default function Ventas() {
                                   <i className="fas fa-truck"></i>
                                 </button>
                               )}
+                              
+                              <button
+                                onClick={() => downloadFacturaPDF(venta)}
+                                disabled={downloadingPDF[venta.id]}
+                                className={`p-2 rounded transition-all duration-200 ${
+                                  downloadingPDF[venta.id]
+                                    ? 'text-orange-400 bg-orange-50 cursor-not-allowed'
+                                    : 'text-orange-500 hover:text-orange-700 hover:bg-orange-50'
+                                }`}
+                                title="Descargar orden de trabajo PDF"
+                              >
+                                <i className={`fas ${downloadingPDF[venta.id] ? 'fa-spinner fa-spin' : 'fa-file-pdf'}`}></i>
+                              </button>
                             </div>
                           </td>
                         </tr>
